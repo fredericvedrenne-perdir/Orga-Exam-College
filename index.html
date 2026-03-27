@@ -1126,6 +1126,7 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
         <div id="corrConfigArea">
             <div style="margin-bottom: 20px; display: flex; gap: 10px;">
     <button class="btn btn-primary" onclick="openAddCorrectorModal()">➕ Ajouter un professeur</button>
+	<button id="btnResetLots" class="btn btn-danger" style="background-color: #e74c3c; border-color: #c0392b;" title="Effacer la répartition pour cette matière"><i class="fas fa-undo"></i> Réinitialiser les lots</button>
     <button class="btn btn-danger" onclick="resetCorrectionSubject()">🧹 Réinitialiser l'équipe</button>
 </div>
             <div style="overflow-x: auto; background: white; border-radius: 8px; border: 1px solid #eee;">
@@ -12029,6 +12030,50 @@ window.exportTableToPDF = function() {
     // 4. Déclenchement du téléchargement immédiat
     doc.save(`Comparatif_DNB_Blanc_${year}.pdf`);
 };
+
+/**
+ * Réinitialise la répartition des copies pour une matière donnée.
+ * @param {string} subjectKey - La clé de la matière (ex: 'maths', 'fr')
+ */
+function resetLots(subjectKey) {
+    if (!subjectKey) return;
+
+    // 1. Validation de l'intention (Pédagogie et Sécurité)
+    const confirmMessage = `Êtes-vous sûr de vouloir effacer la répartition des lots pour la matière "${subjectKey.toUpperCase()}" ? \n\nLes correcteurs seront conservés, mais les listes d'élèves seront vidées.`;
+    
+    if (confirm(confirmMessage)) {
+        try {
+            // 2. Mise à jour de la structure de données
+            // On vide le tableau des lots pour cette matière
+            DB.corrections.lots[subjectKey] = [];
+
+            // 3. Persistance
+            if (typeof saveDB === 'function') {
+                saveDB();
+            }
+
+            // 4. Mise à jour de l'interface (UI)
+            // On appelle la fonction de rendu qui, trouvant un tableau vide, 
+            // affichera l'état initial (ou vide)
+            renderLotsResult(subjectKey);
+
+            console.log(`[Reset] Lots réinitialisés pour : ${subjectKey}`);
+        } catch (error) {
+            console.error("Erreur lors du reset des lots :", error);
+            alert("Une erreur est survenue lors de la réinitialisation.");
+        }
+    }
+}
+
+// Écouteur d'événement (Event Listener)
+document.getElementById('btnResetLots').addEventListener('click', () => {
+    const currentSubject = document.getElementById('corrSubjectSelect').value;
+    if (currentSubject) {
+        resetLots(currentSubject);
+    } else {
+        alert("Veuillez d'abord sélectionner une matière.");
+    }
+});
 // ----------------------
 </script>
 
