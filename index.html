@@ -578,6 +578,130 @@ input:checked + .slider-modern:before { transform: translateX(22px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* =========================================
+   Styles pour l'impression A3 des pochettes
+   ========================================= */
+@media print {
+    /* Masquer toute l'interface classique lors de l'impression */
+    body > *:not(#printArea) {
+        display: none !important;
+    }
+
+    /* Activer la zone d'impression */
+    #printArea {
+        display: block !important;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        background: white;
+    }
+
+    /* Forcer le format A3 Paysage et supprimer les marges du navigateur */
+    @page {
+        size: A3 landscape;
+        margin: 0;
+    }
+
+    /* Structure d'une pochette (1 page entière) */
+    .pochette-page {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        page-break-after: always; /* Force le saut de page après chaque pochette */
+        overflow: hidden;
+    }
+
+    /* Moitié gauche : Dos de la pochette (vide) */
+    .pochette-left {
+        width: 50%;
+        height: 100%;
+        border-right: 1px dashed #ccc; /* Ligne de pliure discrète */
+    }
+
+    /* Moitié droite : Face de la pochette (contenu) */
+    .pochette-right {
+        width: 50%;
+        height: 100%;
+        padding: 5cm 4cm; /* Marges intérieures généreuses */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+    /* En-tête avec les logos */
+    .pochette-logos {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        margin-bottom: 4cm;
+    }
+
+    .pochette-logos img {
+        max-height: 120px;
+        max-width: 45%;
+        object-fit: contain;
+    }
+
+    .etab-name-fallback {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+
+    /* Typographie des titres */
+    .pochette-exam {
+        font-size: 3rem;
+        font-weight: bold;
+        margin-bottom: 1.5cm;
+    }
+
+    .pochette-type {
+        font-size: 2.5rem;
+        margin-bottom: 1.5cm;
+    }
+
+    .pochette-spec {
+        font-size: 5rem;
+        font-weight: 900;
+        border: 4px solid black;
+        padding: 10px 40px;
+        border-radius: 15px;
+    }
+}
+
+/* Design des cadres pour les cases à cocher (Pochettes) */
+.pochette-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    cursor: pointer;
+    background-color: #fdfdfd;
+    transition: all 0.2s ease;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.pochette-checkbox-label:hover {
+    background-color: #f0f4f8;
+    border-color: #0d6efd; /* Bleu au survol */
+}
+
+.pochette-checkbox-label input[type="checkbox"] {
+    margin: 0 !important;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #0d6efd; /* Case cochée en bleu si supporté */
+}
+
 </style>
 </head>
 <body>
@@ -611,6 +735,18 @@ input:checked + .slider-modern:before { transform: translateX(22px); }
             <button class="submenu-item" onclick="nav('convoc-eleves', this)">🎓 Élèves</button>
             <button class="submenu-item" onclick="nav('convoc-profs', this)">👔 Professeurs</button>
         </div>
+		<div id="blocSecretariat" style="display: none;" aria-hidden="true">
+    <button class="menu-item" id="btnSecretariat" aria-expanded="false" onclick="toggleSubmenu('secretariatMenu', this); this.setAttribute('aria-expanded', this.classList.contains('active'))">
+        🏛️ Secrétariat d'examen
+    </button>
+    
+    <div id="secretariatMenu" class="submenu">
+        <button class="submenu-item" onclick="nav('sec-orga', this); initPochettesClasses()">Pochettes Organisation</button>
+<button class="submenu-item" onclick="nav('sec-affichages', this); initAffichagesRooms();">Affichages</button>
+        <button class="submenu-item" onclick="nav('sec-matieres', this)">Pochettes Matières</button>
+        <button class="submenu-item" onclick="nav('sec-lots', this)">Pochettes lots de copie</button>
+      </div>
+</div>
 <button class="menu-item" onclick="nav('corr-repartition', this); renderCorrectionsConfig();">📦 Corrections</button>
 
         <button class="menu-item" id="btnRes" onclick="toggleSubmenu('resMenu', this)">📊 Résultats</button>
@@ -1095,6 +1231,247 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
 
 </div> 
 
+<div id="sec-orga" class="section">
+    <div class="card">
+        <h2>📁 Génération des Pochettes d'Organisation</h2>
+        <p>Sélectionnez les pochettes à générer au format A3 (pliable en 2). Le texte s'imprimera sur la première de couverture.</p>
+        
+        <div style="display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;">
+            <fieldset style="flex: 1; min-width: 300px; border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
+                <legend style="font-weight: bold; padding: 0 10px; font-size: 1.1rem;">Pochettes Logistiques</legend>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="poch-chk" data-type="logistique" value="Étiquettes Copies">
+                        Étiquettes Copies
+                    </label>
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="poch-chk" data-type="logistique" value="Étiquettes Tables">
+                        Étiquettes Tables
+                    </label>
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="poch-chk" data-type="logistique" value="Pochette Secrétariat">
+                        Pochette Secrétariat
+                    </label>
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="poch-chk" data-type="logistique" value="Pochette Direction">
+                        Pochette Direction
+                    </label>
+                </div>
+            </fieldset>
+
+            <fieldset style="flex: 1; min-width: 300px; border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
+                <legend style="font-weight: bold; padding: 0 10px; font-size: 1.1rem;">Confirmations Inscriptions</legend>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button class="btn btn-dark" style="flex: 1; font-size: 0.9rem;" onclick="toggleAllClasses(true)">Tout cocher</button>
+                    <button class="btn btn-dark" style="flex: 1; font-size: 0.9rem;" onclick="toggleAllClasses(false)">Tout décocher</button>
+                    <button class="btn btn-dark" style="font-size: 0.9rem;" onclick="initPochettesClasses()" title="Rafraîchir la liste des classes">🔄</button>
+                </div>
+                
+<div id="classesCheckboxContainer" style="display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow-y: auto; padding-right: 5px;">
+                    <p style="color: gray; font-style: italic;">Cliquez sur 🔄 pour charger les classes.</p>
+                </div>
+            </fieldset>
+        </div>
+
+        <div style="margin-top: 40px; text-align: center;">
+            <button class="btn btn-dark" style="font-size: 1.2rem; padding: 12px 40px; border-radius: 30px;" onclick="generatePochettesPDF()">🖨️ Générer le PDF A3</button>
+        </div>
+    </div>
+</div>
+
+<div id="sec-affichages" class="section">
+    <div class="card">
+        <h2>🪧 Génération des Affichages (A4)</h2>
+        <p>Sélectionnez les affiches de signalétique à générer. Le fichier produit sera un PDF au format A4 Paysage.</p>
+        
+        <div style="display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;">
+            <fieldset style="flex: 1; min-width: 320px; border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
+                <legend style="font-weight: bold; padding: 0 10px; font-size: 1.1rem;">Signalétique & Consignes</legend>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="aff-chk" data-type="sign" value="Secrétariat d'examen">
+                        Secrétariat d'examen
+                    </label>
+
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <label class="pochette-checkbox-label" style="margin-bottom: 0;">
+                            <input type="checkbox" class="aff-chk" data-type="custom" id="chkSilence" value="Personnalisé" checked>
+                            Affiche personnalisée (2 lignes)
+                        </label>
+                        <div style="padding-left: 36px; display: flex; flex-direction: column; gap: 5px;">
+                            <input type="text" id="inputSilenceText1" class="form-control" value="DNB EN COURS" placeholder="Ligne 1 (Gros titre)" style="width: 100%; font-size: 0.9rem; padding: 8px; border-radius: 6px; border: 1px solid #ccc;">
+                            <input type="text" id="inputSilenceText2" class="form-control" value="Merci de respecter le silence absolu." placeholder="Ligne 2 (Sous-titre)" style="width: 100%; font-size: 0.85rem; padding: 8px; border-radius: 6px; border: 1px solid #ccc;">
+                        </div>
+                    </div>
+
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="aff-chk" data-type="arrow-right" value="Flèche Droite">
+                        Direction Examen (Flèche vers la droite ➔)
+                    </label>
+
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="aff-chk" data-type="arrow-left" value="Flèche Gauche">
+                        Direction Examen (Flèche vers la gauche 🡄)
+                    </label>
+                </div>
+            </fieldset>
+
+            <fieldset style="flex: 1; min-width: 320px; border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
+                <legend style="font-weight: bold; padding: 0 10px; font-size: 1.1rem;">Affiches de Salles (Portes)</legend>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <button class="btn btn-dark" style="flex: 1; font-size: 0.9rem;" onclick="toggleAllAffichages(true)">Tout cocher</button>
+                    <button class="btn btn-dark" style="flex: 1; font-size: 0.9rem;" onclick="toggleAllAffichages(false)">Tout décocher</button>
+                    <button class="btn btn-primary" style="font-size: 0.9rem;" onclick="initAffichagesRooms()" title="Rafraîchir la liste des salles">🔄 Charger</button>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+    <label class="pochette-checkbox-label">
+        <input type="checkbox" id="chkPrefixSalle" checked>
+        Indiquer le mot "Salle" avant le nom
+    </label>
+</div>
+                
+<div id="roomsAffichageContainer" style="display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow-y: auto; padding-right: 5px;">
+                    <p style="color: gray; font-style: italic;">Cliquez sur 🔄 pour charger les salles.</p>
+                </div>
+            </fieldset>
+        </div>
+
+        <div style="margin-top: 40px; text-align: center;">
+            <button class="btn btn-dark" style="font-size: 1.2rem; padding: 12px 40px; border-radius: 30px;" onclick="generateAffichagesPDF()">🖨️ Générer le PDF (A4)</button>
+        </div>
+    </div>
+</div>
+
+<div id="sec-matieres" class="section">
+    <div class="card">
+        <h2>📁 Génération des Pochettes Matières (A3)</h2>
+        <p>Sélectionnez les matières pour lesquelles vous souhaitez générer une pochette de ramassage des copies (Format A3 pliable).</p>
+        
+        <div style="margin-bottom: 20px;">
+            <button class="btn btn-dark" style="font-size: 0.9rem;" onclick="toggleAllMatieres(true)">Tout cocher</button>
+            <button class="btn btn-dark" style="font-size: 0.9rem;" onclick="toggleAllMatieres(false)">Tout décocher</button>
+        </div>
+
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            
+            <fieldset style="flex: 1; min-width: 300px; border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
+                <legend style="font-weight: bold; padding: 0 10px; font-size: 1.1rem;">Français</legend>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="mat-chk" value="Français - Partie 1 (Grammaire / Dictée)">
+                        Partie 1 (Grammaire / Dictée)
+                    </label>
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="mat-chk" value="Français - Partie 2 (Rédaction)">
+                        Partie 2 (Rédaction)
+                    </label>
+                </div>
+            </fieldset>
+
+            <fieldset style="flex: 1; min-width: 300px; border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
+                <legend style="font-weight: bold; padding: 0 10px; font-size: 1.1rem;">Mathématiques</legend>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="mat-chk" value="Mathématiques" checked>
+                        Mathématiques
+                    </label>
+                </div>
+            </fieldset>
+
+            <fieldset style="flex: 1; min-width: 300px; border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
+                <legend style="font-weight: bold; padding: 0 10px; font-size: 1.1rem;">Histoire-Géo & EMC</legend>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="mat-chk" value="Histoire-Géographie">
+                        Histoire-Géographie (Séparé)
+                    </label>
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="mat-chk" value="Enseignement Moral et Civique (EMC)">
+                        Enseignement Moral et Civique (Séparé)
+                    </label>
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="mat-chk" value="Histoire-Géographie et EMC">
+                        Histoire-Géographie et EMC (Regroupé)
+                    </label>
+                </div>
+            </fieldset>
+
+            <fieldset style="flex: 1; min-width: 300px; border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
+                <legend style="font-weight: bold; padding: 0 10px; font-size: 1.1rem;">Sciences</legend>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="mat-chk" value="Sciences - SVT">
+                        SVT
+                    </label>
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="mat-chk" value="Sciences - Physique-Chimie">
+                        Physique-Chimie
+                    </label>
+                    <label class="pochette-checkbox-label">
+                        <input type="checkbox" class="mat-chk" value="Sciences - Technologie">
+                        Technologie
+                    </label>
+                </div>
+            </fieldset>
+
+        </div>
+
+        <div style="margin-top: 40px; text-align: center;">
+            <button class="btn btn-dark" style="font-size: 1.2rem; padding: 12px 40px; border-radius: 30px;" onclick="generatePochettesMatieresPDF()">🖨️ Générer le PDF (A3)</button>
+        </div>
+    </div>
+</div>
+
+<div id="sec-lots" class="section">
+    <div class="card">
+        <h2>📦 Gestion des Lots et Commissions d'anonymat</h2>
+        <p>Importez <b>directement le fichier Excel (.xlsx)</b> fourni par le rectorat pour générer vos documents d'expédition.</p>
+        
+        <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
+            <fieldset style="flex: 1; min-width: 300px; border: 1px solid #ccc; padding: 20px; border-radius: 8px; background-color: #f8f9fa;">
+                <legend style="font-weight: bold; padding: 0 10px; font-size: 1.1rem;">1. Configuration</legend>
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div>
+                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Votre RNE / UAI (Centre d'Épreuves) :</label>
+                        <input type="text" id="inputRneCe" class="form-control" placeholder="Ex: 0333530H" style="width: 100%; font-size: 1rem; padding: 10px; border-radius: 6px; border: 1px solid #ccc; text-transform: uppercase;">
+                        <small style="color: gray;">Permet de filtrer uniquement les élèves de votre collège dans le fichier départemental.</small>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset style="flex: 1; min-width: 300px; border: 1px solid #ccc; padding: 20px; border-radius: 8px;">
+                <legend style="font-weight: bold; padding: 0 10px; font-size: 1.1rem;">2. Fichier Excel & Génération</legend>
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div>
+                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Fichier Correspondance Anonymat (.xlsx) :</label>
+                        <input type="file" id="excelLotsInput" accept=".xlsx, .xls" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px;">
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                        <button class="btn btn-dark" style="font-size: 1rem; padding: 10px; border-radius: 8px;" onclick="processLotsExcel('bordereaux')">
+                            🖨️ Générer les Bordereaux d'Envoi (A3 Paysage)
+                        </button>
+                        <button class="btn btn-dark" style="font-size: 1rem; padding: 10px; border-radius: 8px;" onclick="processLotsExcel('pochettes')">
+                            🖨️ Générer les Pochettes par Commission (A3 Portrait)
+                        </button>
+						<button class="btn btn-dark" style="font-size: 1rem; padding: 10px; border-radius: 8px;" onclick="processLotsExcel('enveloppes')">
+                            ✉️ Générer les Couvertures d'Enveloppes (A4 Paysage)
+                        </button>
+                    </div>
+                </div>
+            </fieldset>
+        </div>
+        
+        <div id="lotsFeedback" style="margin-top: 20px; font-weight: bold; text-align: center; font-size: 1.1rem;"></div>
+    </div>
+</div>
+
+<div id="printArea" style="display: none;" aria-hidden="true"></div>
+
 <div id="corr-repartition" class="section">
     <div class="card">
         <div class="card-header-flex">
@@ -1112,11 +1489,12 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
         <div style="margin-bottom: 25px; display: flex; gap: 20px; align-items: flex-end; background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
             <div style="flex: 1;">
                 <label style="font-weight: bold; display: block; margin-bottom: 8px; color: #2c3e50;">Mode de répartition</label>
-                <select id="corrModeSelect" onchange="updateCorrGlobalMode()" style="background: white; width: 100%; padding: 10px; font-size: 1rem; border: 1px solid #ccc; border-radius: 5px;">
-                    <option value="auto">⚖️ Équitable (Calcul automatique sous contraintes)</option>
-                    <option value="manual_quota">✍️ Quotas Manuels (Saisie libre du nombre de copies)</option>
-                    <option value="manual_class">📦 Mode Manuel (1 lot indivisible = 1 classe)</option>
-                </select>
+<select id="corrModeSelect" onchange="updateCorrGlobalMode()" style="background: white; width: 100%; padding: 10px; font-size: 1rem; border: 1px solid #ccc; border-radius: 5px;">
+    <option value="auto">⚖️ Équitable (Calcul automatique sous contraintes)</option>
+    <option value="manual_quota">✍️ Quotas Manuels (Saisie libre du nombre de copies)</option>
+    <option value="one_to_one">📦 Mode 1 classe = 1 correcteur (Lot indivisible)</option>
+    <option value="manual_assisted">✋ Sélection Manuelle Assistée (Drag & Drop)</option>
+</select>
             </div>
             <div>
                 <button class="btn btn-primary" onclick="generateDistributionLots()" style="background: #8e44ad; padding: 12px 25px; font-size: 1.1rem; font-weight: bold; box-shadow: 0 4px 6px rgba(142, 68, 173, 0.3);">🚀 Générer les Lots</button>
@@ -1154,7 +1532,41 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
                     </tbody>
             </table>
         </div>
+<div id="corrAssistedArea" style="display: none; margin-top: 25px; height: 650px; border: 1px solid #ddd; border-radius: 8px; background: white; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+    <div style="display: flex; height: 100%;">
+        
+        <div style="width: 350px; background: #f8f9fa; border-right: 2px solid #eee; display: flex; flex-direction: column;">
+            <div style="padding: 15px; border-bottom: 1px solid #ddd; background: #ebf5fb;">
+                <h4 style="margin: 0 0 10px 0; color: #2980b9;"><i class="fas fa-search"></i> Copies restantes</h4>
+                
+                <label style="font-size:0.8rem; font-weight:bold;">Filtrer par Aménagement :</label>
+                <select id="assistFilterLabel" class="form-select" style="margin-bottom: 10px; padding: 8px;" onchange="renderAssistedReservoir()">
+                    <option value="">-- Tous les élèves non attribués --</option>
+                </select>
+                
+                <input type="text" id="assistSearchInput" placeholder="Rechercher par nom..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" onkeyup="renderAssistedReservoir()">
+                
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #bce8f1;">
+                    <label style="font-size: 0.85rem; font-weight: bold; color: #d35400;">⚡ Attribuer la liste filtrée à :</label>
+                    <div style="display: flex; gap: 5px; margin-top: 5px;">
+                        <select id="assistGroupAssignSelect" class="form-select" style="flex: 1; padding: 6px;"></select>
+                        <button class="btn btn-warning btn-sm" style="color:white; font-weight:bold;" onclick="assignFilteredGroup()">Go</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="assistReservoirList" style="flex: 1; overflow-y: auto; padding: 10px; background: #fcfcfc;">
+                </div>
+        </div>
 
+        <div style="flex: 1; padding: 20px; overflow-y: auto; background: #fdfdfd;">
+            <h4 style="margin-top: 0; color: #2c3e50;">📥 Glissez les copies dans le panier du correcteur</h4>
+            <div id="assistDropzones" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-top: 15px;">
+                </div>
+        </div>
+        
+    </div>
+</div>
         <div id="corrResultsArea" style="margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;"></div>
     </div>
 </div>
@@ -10029,10 +10441,15 @@ window.renderCorrectionsConfig = function() {
     const config = DB.corrections.settings[subj];
     document.getElementById('corrModeSelect').value = config.mode;
     
-    const isAutoOrQuota = (config.mode === 'auto' || config.mode === 'manual_quota');
-    const isManualClass = config.mode === 'manual_class';
+const isAutoOrQuota = (config.mode === 'auto' || config.mode === 'manual_quota');
+    const isManualClass = config.mode === 'one_to_one';
+    const isManualAssisted = config.mode === 'manual_assisted'; // <-- NOUVEAU
 
     document.getElementById('corrManualClassArea').style.display = isManualClass ? 'block' : 'none';
+    
+    // <-- NOUVEAU : Affichage de la zone Drag & Drop
+    const assistedArea = document.getElementById('corrAssistedArea');
+    if (assistedArea) assistedArea.style.display = isManualAssisted ? 'block' : 'none';
 
     const thead = document.getElementById('corrThead');
     const tbody = document.getElementById('corrTbody');
@@ -10094,12 +10511,14 @@ window.renderCorrectionsConfig = function() {
     });
 
     // Rendu spécifique au mode manuel par classe
-    if (isManualClass) {
-        renderManualClassTable(subj, config, profsMap = {}); 
+if (isManualClass) {
+        renderManualClassTable(subj, config, profsMap = {});
+    } else if (isManualAssisted) {
+        initManualAssistedMode(subj); // <-- NOUVEAU
     }
 
     renderLotsResult(subj);
-};
+}; // Fin de renderCorrectionsConfig
 
 /**
  * Réinitialise complètement l'équipe de correction pour la matière sélectionnée.
@@ -10190,7 +10609,7 @@ window.generateDistributionLots = function() {
     });
 
     // MODE 1 : 1 Lot = 1 Classe
-    if (config.mode === 'manual_class') {
+    if (config.mode === 'one_to_one') {
         let unassignedClasses = new Set();
         pool.forEach(student => {
             if(!student.classe || student.classe === "Non Classé") return;
@@ -11843,7 +12262,7 @@ function getGlobalComparisonHtml() {
                 const config = DB.corrections.settings[subId];
                 
                 // On s'assure qu'on est bien en mode manuel (Lot Indivisible)
-                if (config.mode === 'manual_class' && config.manualMap) {
+                if (config.mode === 'one_to_one' && config.manualMap) {
                     const profId = config.manualMap[cls]; // On récupère l'ID exact assigné à cette classe
                     
                     if (profId) {
@@ -12074,6 +12493,1293 @@ document.getElementById('btnResetLots').addEventListener('click', () => {
         alert("Veuillez d'abord sélectionner une matière.");
     }
 });
+
+// ============================================================================
+// MODULE : REPARTITION MANUELLE ASSISTEE (DRAG & DROP)
+// ============================================================================
+let draggedAssistStudentId = null;
+
+function initManualAssistedMode(subjectKey) {
+    const config = DB.corrections.settings[subjectKey];
+    if (!config || config.teachers.length === 0) return;
+
+    // 1. Initialisation de la structure des lots si elle est vide
+    if (!DB.corrections.lots[subjectKey] || DB.corrections.lots[subjectKey].length === 0) {
+        DB.corrections.lots[subjectKey] = config.teachers.map(tc => {
+            const tDb = DB.teachers.find(t => t.id === tc.id);
+            return {
+                id: tc.id,
+                name: tDb ? `${tDb.nom} ${tDb.prenom}` : 'Inconnu',
+                copies: []
+            };
+        });
+    }
+
+    populateAssistFilters();
+    populateAssistGroupSelect(subjectKey);
+    renderAssistedReservoir();
+    renderAssistedDropzones(subjectKey);
+}
+
+function populateAssistFilters() {
+    const select = document.getElementById('assistFilterLabel');
+    select.innerHTML = '<option value="">-- Tous les élèves non attribués --</option>';
+    if (DB.config && DB.config.labels) {
+        DB.config.labels.forEach(lbl => {
+            select.innerHTML += `<option value="${lbl.code}">${lbl.name} (${lbl.code})</option>`;
+        });
+    }
+}
+
+function populateAssistGroupSelect(subjectKey) {
+    const select = document.getElementById('assistGroupAssignSelect');
+    select.innerHTML = '<option value="">-- Choisir un correcteur --</option>';
+    const lots = DB.corrections.lots[subjectKey] || [];
+    lots.forEach(lot => {
+        select.innerHTML += `<option value="${lot.id}">${lot.name}</option>`;
+    });
+}
+
+function getUnassignedStudents(subjectKey) {
+    const lots = DB.corrections.lots[subjectKey] || [];
+    const assignedIds = new Set();
+    lots.forEach(lot => lot.copies.forEach(copy => assignedIds.add(copy.id)));
+    // Filtre : Élève ayant un anonymat ET pas encore dans un panier
+    return DB.students.filter(s => s.anonymat && s.anonymat.trim() !== "" && !assignedIds.has(s.id));
+}
+
+function renderAssistedReservoir() {
+    const subjectKey = document.getElementById('corrSubjectSelect').value;
+    const filterLabel = document.getElementById('assistFilterLabel').value;
+    const searchVal = document.getElementById('assistSearchInput').value.toLowerCase();
+    const reservoir = document.getElementById('assistReservoirList');
+    
+    reservoir.innerHTML = '';
+    let unassigned = getUnassignedStudents(subjectKey);
+
+    // Application des Filtres
+    if (filterLabel) unassigned = unassigned.filter(s => s.labels && s.labels.includes(filterLabel));
+    if (searchVal) {
+        unassigned = unassigned.filter(s => 
+            s.nom.toLowerCase().includes(searchVal) || s.prenom.toLowerCase().includes(searchVal) || s.anonymat.toLowerCase().includes(searchVal)
+        );
+    }
+
+    if (unassigned.length === 0) {
+        reservoir.innerHTML = '<div style="padding:15px; color:#7f8c8d; text-align:center; font-style:italic;">Aucune copie restante pour ces critères.</div>';
+        return;
+    }
+
+    // Création des cartes déplaçables
+    unassigned.forEach(s => {
+        const item = document.createElement('div');
+        item.draggable = true;
+        item.style.cssText = "background: white; border: 1px solid #ddd; border-left: 4px solid #2980b9; padding: 8px 10px; margin-bottom: 8px; border-radius: 4px; cursor: grab; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.2s;";
+        
+        let badges = (s.labels || []).map(lbl => `<span style="background:#e67e22; color:white; padding:2px 5px; border-radius:10px; font-size:0.65rem; margin-left:3px;">${lbl}</span>`).join('');
+
+        item.innerHTML = `
+            <div style="font-size:0.9rem;">
+                <strong>${s.nom}</strong> ${s.prenom}
+                <div style="font-size:0.75rem; color:#7f8c8d;">Ano: ${s.anonymat} | Cl: ${s.classe}</div>
+            </div>
+            <div>${badges}</div>
+        `;
+
+        // Écouteurs Drag HTML5
+        item.addEventListener('dragstart', (e) => {
+            draggedAssistStudentId = s.id;
+            e.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => item.style.opacity = '0.4', 0);
+        });
+
+        item.addEventListener('dragend', () => {
+            item.style.opacity = '1';
+            draggedAssistStudentId = null;
+        });
+
+        reservoir.appendChild(item);
+    });
+}
+
+function renderAssistedDropzones(subjectKey) {
+    const container = document.getElementById('assistDropzones');
+    container.innerHTML = '';
+    const lots = DB.corrections.lots[subjectKey] || [];
+    
+    lots.forEach((lot, index) => {
+        const card = document.createElement('div');
+        card.style.cssText = "background: white; border: 2px dashed #bdc3c7; border-radius: 8px; display: flex; flex-direction: column; height: 350px; transition: background 0.2s;";
+        
+        card.innerHTML = `
+            <div style="background: #34495e; color: white; padding: 10px; border-radius: 6px 6px 0 0; display: flex; justify-content: space-between;">
+                <strong>👨‍🏫 ${lot.name}</strong>
+                <span class="badge" style="background:#2ecc71;">${lot.copies.length}</span>
+            </div>
+            <div class="dropzone-body" style="flex: 1; padding: 10px; overflow-y: auto; background: #fafafa;">
+                ${lot.copies.map(c => `
+                    <div style="background: #fff; border: 1px solid #eee; padding: 5px 8px; margin-bottom: 5px; font-size: 0.8rem; display: flex; justify-content: space-between; border-left: 3px solid #2ecc71; border-radius: 3px;">
+                        <span>${c.nom} ${c.prenom} (${c.anonymat})</span>
+                        <button onclick="removeCopyFromLot('${subjectKey}', ${index}, ${c.id})" style="background:none; border:none; color:#e74c3c; cursor:pointer;" title="Retirer">✖</button>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+
+        const dropzoneBody = card.querySelector('.dropzone-body');
+
+        // Écouteurs pour le Drop
+        dropzoneBody.addEventListener('dragover', (e) => {
+            e.preventDefault(); 
+            card.style.borderColor = '#27ae60';
+            card.style.backgroundColor = '#e8f8f5';
+        });
+
+        dropzoneBody.addEventListener('dragleave', () => {
+            card.style.borderColor = '#bdc3c7';
+            card.style.backgroundColor = 'transparent';
+        });
+
+        dropzoneBody.addEventListener('drop', (e) => {
+            e.preventDefault();
+            card.style.borderColor = '#bdc3c7';
+            card.style.backgroundColor = 'transparent';
+            if (draggedAssistStudentId) {
+                assignStudentToLot(subjectKey, draggedAssistStudentId, lot.id);
+            }
+        });
+
+        container.appendChild(card);
+    });
+}
+
+function assignStudentToLot(subjectKey, studentId, lotId) {
+    const student = DB.students.find(s => s.id === studentId);
+    const lot = DB.corrections.lots[subjectKey].find(l => l.id === lotId);
+    if (!student || !lot) return;
+
+    lot.copies.push(student);
+    if (typeof saveDB === 'function') saveDB();
+    
+    // Rafraîchissement des deux panneaux
+    renderAssistedReservoir();
+    renderAssistedDropzones(subjectKey);
+    // On met aussi à jour l'affichage standard des cartes récapitulatives en dessous
+    renderLotsResult(subjectKey); 
+}
+
+function removeCopyFromLot(subjectKey, lotIndex, studentId) {
+    const lot = DB.corrections.lots[subjectKey][lotIndex];
+    lot.copies = lot.copies.filter(c => c.id !== studentId);
+    
+    if (typeof saveDB === 'function') saveDB();
+    renderAssistedReservoir();
+    renderAssistedDropzones(subjectKey);
+    renderLotsResult(subjectKey);
+}
+
+// Fonction de productivité "Attribution Groupée"
+function assignFilteredGroup() {
+    const subjectKey = document.getElementById('corrSubjectSelect').value;
+    const targetLotIdRaw = document.getElementById('assistGroupAssignSelect').value;
+    
+    if (!targetLotIdRaw) return alert("Veuillez sélectionner un correcteur dans la liste déroulante.");
+    
+    // On reconstruit la liste filtrée à l'écran
+    const filterLabel = document.getElementById('assistFilterLabel').value;
+    const searchVal = document.getElementById('assistSearchInput').value.toLowerCase();
+    
+    let unassigned = getUnassignedStudents(subjectKey);
+    if (filterLabel) unassigned = unassigned.filter(s => s.labels && s.labels.includes(filterLabel));
+    if (searchVal) unassigned = unassigned.filter(s => s.nom.toLowerCase().includes(searchVal) || s.prenom.toLowerCase().includes(searchVal));
+
+    if (unassigned.length === 0) return alert("Le réservoir actuel est vide avec ces filtres.");
+
+    const lotId = isNaN(targetLotIdRaw) ? targetLotIdRaw : parseFloat(targetLotIdRaw);
+    const lot = DB.corrections.lots[subjectKey].find(l => l.id === lotId);
+    if (!lot) return;
+
+    // Action Poussée
+    unassigned.forEach(student => lot.copies.push(student));
+
+    if (typeof saveDB === 'function') saveDB();
+    renderAssistedReservoir();
+    renderAssistedDropzones(subjectKey);
+    renderLotsResult(subjectKey);
+    
+    // Notification propre
+    showToast(`${unassigned.length} copies attribuées d'un coup à ${lot.name}.`);
+}
+
+/**
+ * Met à jour la visibilité du menu "Secrétariat d'examen" 
+ * @param {string} examType - La valeur actuelle du type d'évaluation (ex: 'DNB')
+ * @why Évite les menus fantômes et respecte l'accessibilité (ARIA) en masquant proprement le conteneur.
+ */
+function updateSecretariatMenuVisibility(examType) {
+    const blocSecretariat = document.getElementById('blocSecretariat');
+    if (!blocSecretariat) return;
+
+    // "DNB" est la valeur exacte définie dans ta balise <option value="DNB">
+    if (examType === 'DNB') {
+        blocSecretariat.style.display = 'block';
+        blocSecretariat.setAttribute('aria-hidden', 'false');
+    } else {
+        blocSecretariat.style.display = 'none';
+        blocSecretariat.setAttribute('aria-hidden', 'true');
+        
+        // Sécurité : On referme le sous-menu s'il était ouvert pour éviter qu'il 
+        // ne réapparaisse déroulé lors d'une future réactivation du mode DNB.
+        const sousMenu = document.getElementById('secretariatMenu');
+        const btnPrincipal = document.getElementById('btnSecretariat');
+        if (sousMenu) sousMenu.classList.remove('open');
+        if (btnPrincipal) {
+            btnPrincipal.classList.remove('active');
+            btnPrincipal.setAttribute('aria-expanded', 'false');
+        }
+    }
+}
+
+// 1. Surcharge (Override) douce de ta fonction existante `handleExamTypeChange`
+const originalHandleExamTypeChange = window.handleExamTypeChange;
+
+window.handleExamTypeChange = function(value) {
+    // Exécute d'abord le comportement d'origine (sauvegarde DB + gestion du champ CUSTOM)
+    if (typeof originalHandleExamTypeChange === 'function') {
+        originalHandleExamTypeChange(value);
+    }
+    
+    // Déclenche ensuite notre nouvelle règle métier
+    updateSecretariatMenuVisibility(value);
+};
+
+// 2. Initialisation au chargement de la page
+// @why S'assure que le menu s'affiche ou se masque correctement si l'utilisateur a rechargé la page
+document.addEventListener('DOMContentLoaded', () => {
+    // Timeout léger pour s'assurer que l'objet global DB a eu le temps d'être restauré
+    setTimeout(() => {
+        const selectElement = document.getElementById('examTypeSelect');
+        const currentType = (typeof DB !== 'undefined' && DB.config && DB.config.examType) 
+                            ? DB.config.examType 
+                            : (selectElement ? selectElement.value : 'DNB Blanc');
+                            
+        updateSecretariatMenuVisibility(currentType);
+    }, 150);
+});
+
+/**
+ * Initialise la liste des classes dans le menu Pochettes (appelé à l'affichage de la page)
+ * @why Évite de coder les classes 3A, 3B en dur. Utilise la base de données élèves.
+ */
+/**
+ * Initialise la liste des classes dans le menu Pochettes
+ */
+function initPochettesClasses() {
+    const container = document.getElementById('classesCheckboxContainer');
+    if (!container) return;
+    
+    container.innerHTML = ''; // On vide le conteneur
+    
+    let classes = [];
+    
+    // On vérifie que DB et DB.students existent
+    if (typeof DB !== 'undefined' && DB.students && DB.students.length > 0) {
+        // Tolérance : on cherche s.classe OU s.Classe selon la syntaxe de l'import CSV
+        classes = [...new Set(DB.students.map(s => s.classe || s.Classe))];
+        // On retire les valeurs vides ou indéfinies, et on trie par ordre alphabétique
+        classes = classes.filter(Boolean).sort();
+    } 
+
+    // S'il n'y a toujours rien, on met des classes par défaut pour tester l'interface
+    if (classes.length === 0) {
+        classes = ['3A', '3B', '3C', '3D'];
+    }
+
+    // Création des blocs (cadres) pour chaque classe
+    classes.forEach(cls => {
+        const label = document.createElement('label');
+        label.className = 'pochette-checkbox-label'; // La nouvelle classe CSS magique
+        
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'poch-chk class-chk';
+        input.setAttribute('data-type', 'classe');
+        input.value = cls;
+        
+        label.appendChild(input);
+        label.appendChild(document.createTextNode(` Confirmations ${cls}`));
+        
+        container.appendChild(label);
+    });
+}
+
+function toggleAllClasses(state) {
+    document.querySelectorAll('.class-chk').forEach(chk => chk.checked = state);
+}
+
+/**
+ * Génère le flux HTML des pochettes et déclenche l'impression native
+ * @why L'impression native par le navigateur garantit un PDF A3 vectoriel parfait, sans librairie lourde.
+ */
+/**
+ * Génère un véritable fichier PDF (A3 Paysage) pour les pochettes d'organisation
+ * Inspire des fonctions "exportConvocationStudents" existantes.
+ */
+window.generatePochettesPDF = function() {
+    const checkboxes = document.querySelectorAll('.poch-chk:checked');
+    if (checkboxes.length === 0) {
+        alert("Veuillez sélectionner au moins une pochette à générer.");
+        return;
+    }
+
+    // Initialisation de jsPDF (Format A3 Paysage)
+    if (typeof window.jspdf === 'undefined') {
+        alert("Erreur : La librairie jsPDF n'est pas chargée.");
+        return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a3'); 
+    
+    // Dimensions A3 Paysage : 420mm x 297mm
+    const PAGE_W = 420;
+    const PAGE_H = 297;
+    const HALF_W = 210; // Le centre exact (pliure)
+
+    // Récupération des données dynamiques depuis la Configuration
+    const examType = (typeof DB !== 'undefined' && DB.config && DB.config.examType) ? DB.config.examType : "DNB";
+    const examYear = (typeof DB !== 'undefined' && DB.config && DB.config.year) ? DB.config.year : new Date().getFullYear();
+    const etabName = (typeof DB !== 'undefined' && DB.config && DB.config.schoolName) ? DB.config.schoolName : "Établissement";
+
+    let count = 0;
+
+    checkboxes.forEach(cb => {
+        if (count > 0) doc.addPage("a3", "l");
+        count++;
+
+        const type = cb.getAttribute('data-type');
+        const val = cb.value;
+
+        // ==========================================
+        // DESSIN DU GABARIT (A3 Plié)
+        // ==========================================
+        
+        // 1. Ligne de pliure centrale (pointillés discrets)
+        doc.setDrawColor(200);
+        doc.setLineDash([5, 5], 0);
+        doc.line(HALF_W, 0, HALF_W, PAGE_H);
+        doc.setLineDash([]); // On remet le trait continu pour la suite
+
+        // ==========================================
+        // PARTIE DROITE DE LA POCHETTE (COUVERTURE)
+        // ==========================================
+        const M = 20; // Marge intérieure
+        const centerX = HALF_W + (HALF_W / 2); // Centre de la moitié droite : 210 + 105 = 315
+
+        // 2. Logo (Utilise la fonction globale addSmartLogo si elle existe dans ton projet)
+        if (typeof addSmartLogo === 'function') {
+            addSmartLogo(doc, HALF_W + M, 20, 40);
+        } else {
+            // Text Fallback si pas de logo
+            doc.setFontSize(16);
+            doc.setTextColor(100);
+            doc.text("Académie", HALF_W + M, 30);
+        }
+
+        // Nom de l'établissement en haut à droite
+        doc.setFontSize(18);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0);
+        doc.text(etabName, PAGE_W - M, 30, { align: 'right' });
+
+        // 3. Titre Principal (ex: DNB 2025)
+        doc.setFontSize(45);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(44, 62, 80); // Couleur sombre (Bleu/Gris)
+        doc.text(`${examType} ${examYear}`, centerX, 100, { align: 'center' });
+
+        // 4. Titre Secondaire (Le type de pochette)
+        let titreSecondaire = (type === 'classe') ? "Confirmations inscriptions" : val;
+        doc.setFontSize(35);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(0);
+        doc.text(titreSecondaire, centerX, 140, { align: 'center' });
+
+        // 5. Cadre Spécifique (Le nom de la classe, si c'est une pochette classe)
+        if (type === 'classe') {
+            doc.setFontSize(80);
+            doc.setFont("helvetica", "bold");
+            
+            // Calcul dynamique pour centrer le cadre autour du texte
+            const textW = doc.getTextWidth(val);
+            const boxPadding = 30; // Marge à l'intérieur du cadre
+            const boxW = textW + boxPadding * 2;
+            const boxH = 50;
+            const boxX = centerX - (boxW / 2);
+            const boxY = 180;
+
+            // Dessin du cadre avec un trait épais
+            doc.setDrawColor(0);
+            doc.setLineWidth(2);
+            doc.rect(boxX, boxY, boxW, boxH);
+            
+            // Texte à l'intérieur du cadre
+            doc.text(val, centerX, boxY + 38, { align: 'center' });
+        }
+    });
+
+    // Déclenche le téléchargement du fichier PDF final
+    doc.save(`Pochettes_Organisation_${examYear}.pdf`);
+};
+
+
+window.toggleAllAffichages = function(state) {
+    document.querySelectorAll('.room-aff-chk').forEach(chk => chk.checked = state);
+};
+
+/**
+ * Charge dynamiquement les salles pour le menu Affichages
+ */
+window.initAffichagesRooms = function() {
+    const container = document.getElementById('roomsAffichageContainer');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    let rooms = [];
+    
+    if (typeof DB !== 'undefined' && DB.rooms && DB.rooms.length > 0) {
+        rooms = DB.rooms.map(r => {
+            if (typeof r === 'string') return r;
+            if (typeof r === 'object') return r.name || r.nom || r.salle || r.roomName || r.title || "";
+            return "";
+        });
+        rooms = [...new Set(rooms)].filter(val => val !== "").sort((a, b) => {
+            return a.toString().localeCompare(b.toString(), undefined, {numeric: true, sensitivity: 'base'});
+        });
+    }
+
+    if (rooms.length === 0) {
+        container.innerHTML = '<p style="color: red; font-size: 0.9rem;">Aucune salle trouvée.</p>';
+        return;
+    }
+
+    rooms.forEach(room => {
+        const label = document.createElement('label');
+        label.className = 'pochette-checkbox-label';
+        
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'aff-chk room-aff-chk';
+        input.setAttribute('data-type', 'room');
+        input.value = room; 
+        
+        label.appendChild(input);
+        // On affiche juste le nom brut (ex: "A101" ou "Permanence"), le préfixe sera géré à l'impression
+        label.appendChild(document.createTextNode(` ${room}`));
+        
+        container.appendChild(label);
+    });
+};
+
+/**
+ * Génère le fichier PDF des affichages (A4 Paysage)
+ * CORRECTION : Augmentation de la taille du logo (30mm -> 50mm)
+ */
+window.generateAffichagesPDF = function() {
+    const checkboxes = document.querySelectorAll('.aff-chk:checked');
+    if (checkboxes.length === 0) {
+        alert("Veuillez sélectionner au moins un affichage à générer.");
+        return;
+    }
+
+    if (typeof window.jspdf === 'undefined') {
+        alert("Erreur : La librairie jsPDF n'est pas chargée.");
+        return;
+    }
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a4'); 
+    
+    const PAGE_W = 297;
+    const PAGE_H = 210;
+    const CENTER_X = PAGE_W / 2;
+    const CENTER_Y = PAGE_H / 2;
+
+    const examType = (typeof DB !== 'undefined' && DB.config && DB.config.examType) ? DB.config.examType : "DNB";
+    const examYear = (typeof DB !== 'undefined' && DB.config && DB.config.examYear) ? DB.config.examYear : new Date().getFullYear();
+    
+    // --- EXTRACTION ROBUSTE DU NOM DE L'ÉTABLISSEMENT ---
+    let schoolName = "Établissement";
+    if (typeof DB !== 'undefined' && DB.config) {
+        const possibleKeys = ['nomEtablissement', 'nomEtab', 'etablissement', 'etabName', 'schoolName', 'college', 'nomCollege'];
+        for (const key of possibleKeys) {
+            if (DB.config[key]) {
+                schoolName = DB.config[key];
+                break;
+            }
+        }
+    }
+    const schoolCity = (typeof DB !== 'undefined' && DB.config && DB.config.city) ? DB.config.city : ""; 
+    const chkPrefix = document.getElementById('chkPrefixSalle');
+    const useRoomPrefix = chkPrefix ? chkPrefix.checked : true;
+
+    let count = 0;
+
+    checkboxes.forEach(cb => {
+        if (count > 0) doc.addPage("a4", "l");
+        count++;
+
+        const type = cb.getAttribute('data-type');
+        const val = cb.value;
+
+        // ============================================================
+        // 1. Logo (En haut à gauche) - CORRECTION TAILLE (Largeur 50mm)
+        // ============================================================
+        if (typeof addSmartLogo === 'function') {
+            // Position x=15, y=10, Largeur=50mm (Hauteur auto-calculée par addSmartLogo)
+            addSmartLogo(doc, 15, 10, 50); 
+        }
+
+        // 2. Établissement (Haut Droite)
+        doc.setFontSize(18);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0);
+        doc.text(schoolName, PAGE_W - 15, 20, { align: 'right' });
+        
+        if (schoolCity) {
+            doc.setFontSize(14);
+            doc.setFont("helvetica", "italic");
+            doc.setTextColor(80);
+            doc.text(schoolCity, PAGE_W - 15, 28, { align: 'right' });
+        }
+
+        // 3. Mention DNB + Année (Bas Centre - TRÈS GROS)
+        doc.setFontSize(40);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(60); 
+        doc.text(`${examType} SESSION ${examYear}`, CENTER_X, PAGE_H - 18, { align: 'center' });
+
+        // 4. Contenu Central
+        doc.setTextColor(0);
+
+        if (type === 'room' || type === 'sign') {
+            doc.setFontSize(95); 
+            doc.setFont("helvetica", "bold");
+            
+            let printText = val;
+            if (type === 'room' && useRoomPrefix) {
+                if (!val.toLowerCase().startsWith('salle')) {
+                    printText = `Salle ${val}`;
+                }
+            }
+            
+            if (printText.length > 12) doc.setFontSize(70);
+            if (printText.length > 20) doc.setFontSize(55);
+            doc.text(printText, CENTER_X, CENTER_Y - 5, { align: 'center', baseline: 'middle' });
+            
+        } else if (type === 'custom') {
+            const line1 = document.getElementById('inputSilenceText1').value;
+            const line2 = document.getElementById('inputSilenceText2').value;
+            
+            doc.setFontSize(75);
+            doc.setFont("helvetica", "bold");
+            doc.text(line1, CENTER_X, CENTER_Y - 25, { align: 'center', baseline: 'middle' });
+            
+            doc.setFontSize(42);
+            doc.setFont("helvetica", "normal");
+            const lines2 = doc.splitTextToSize(line2, PAGE_W - 40);
+            doc.text(lines2, CENTER_X, CENTER_Y + 18, { align: 'center', baseline: 'middle' });
+
+        } else if (type === 'arrow-right' || type === 'arrow-left') {
+            doc.setFillColor(0);
+            const tailW = 120;
+            const tailH = 40;
+            const headW = 60;
+            const headH = 100;
+            const offsetY = CENTER_Y - 10; 
+            
+            if (type === 'arrow-right') {
+                doc.rect(CENTER_X - 80, offsetY - (tailH/2), tailW, tailH, 'F');
+                const headX = CENTER_X - 80 + tailW;
+                doc.triangle(headX, offsetY - (headH/2), headX, offsetY + (headH/2), headX + headW, offsetY, 'F');
+            } else {
+                const startX = CENTER_X + 80;
+                doc.rect(startX - tailW, offsetY - (tailH/2), tailW, tailH, 'F');
+                const headX = startX - tailW;
+                doc.triangle(headX, offsetY - (headH/2), headX, offsetY + (headH/2), headX - headW, offsetY, 'F');
+            }
+        }
+    });
+
+    doc.save(`Affichages_Signaletique_${examYear}.pdf`);
+};
+
+/**
+ * Coche ou décoche toutes les matières
+ */
+window.toggleAllMatieres = function(state) {
+    document.querySelectorAll('.mat-chk').forEach(chk => chk.checked = state);
+};
+
+/**
+ * Génère un fichier PDF (A3 Paysage) pour les pochettes de ramassage des copies.
+ * CORRECTION : Centrage vertical et horizontal absolu ligne par ligne.
+ */
+window.generatePochettesMatieresPDF = function() {
+    const checkboxes = document.querySelectorAll('.mat-chk:checked');
+    if (checkboxes.length === 0) {
+        alert("Veuillez sélectionner au moins une matière à générer.");
+        return;
+    }
+
+    if (typeof window.jspdf === 'undefined') {
+        alert("Erreur : La librairie jsPDF n'est pas chargée.");
+        return;
+    }
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a3'); 
+    
+    // Dimensions A3 Paysage
+    const PAGE_W = 420;
+    const PAGE_H = 297;
+    const HALF_W = 210; 
+
+    // Extraction robuste de la configuration
+    const examType = (typeof DB !== 'undefined' && DB.config && DB.config.examType) ? DB.config.examType : "DNB";
+    const examYear = (typeof DB !== 'undefined' && DB.config && DB.config.examYear) ? DB.config.examYear : new Date().getFullYear();
+    
+    let schoolName = "Établissement";
+    if (typeof DB !== 'undefined' && DB.config) {
+        const possibleKeys = ['nomEtablissement', 'nomEtab', 'etablissement', 'etabName', 'schoolName', 'college', 'nomCollege'];
+        for (const key of possibleKeys) {
+            if (DB.config[key]) {
+                schoolName = DB.config[key];
+                break;
+            }
+        }
+    }
+    if (schoolName === "Établissement") {
+        const etabInput = document.getElementById('etabName') || document.getElementById('nomEtab') || document.getElementById('etablissement') || document.getElementById('schoolName');
+        if (etabInput && etabInput.value) schoolName = etabInput.value;
+    }
+
+    let count = 0;
+
+    checkboxes.forEach(cb => {
+        if (count > 0) doc.addPage("a3", "l");
+        count++;
+
+        const matiereTitle = cb.value;
+
+        // 1. Ligne de pliure centrale (pointillés)
+        doc.setDrawColor(200);
+        doc.setLineDash([5, 5], 0);
+        doc.line(HALF_W, 0, HALF_W, PAGE_H);
+        doc.setLineDash([]); 
+
+        // 2. Préparation de la partie droite (Couverture)
+        const M = 20; 
+        const centerX = HALF_W + (HALF_W / 2); 
+
+        // Logo
+        if (typeof addSmartLogo === 'function') {
+            addSmartLogo(doc, HALF_W + M, 15, 50);
+        }
+
+        // Nom de l'établissement
+        doc.setFontSize(18);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0);
+        doc.text(schoolName, PAGE_W - M, 25, { align: 'right' });
+
+        // Titre Principal
+        doc.setFontSize(45);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(44, 62, 80); 
+        doc.text(`${examType} SESSION ${examYear}`, centerX, 100, { align: 'center' });
+
+        // Sous-titre
+        doc.setFontSize(30);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100);
+        doc.text("Copies d'examen", centerX, 135, { align: 'center' });
+
+        // ==========================================
+        // CADRE DE LA MATIÈRE (Centrage absolu)
+        // ==========================================
+        
+        doc.setFontSize(40); 
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0);
+        
+        const maxTextWidth = 150; 
+        const lines = doc.splitTextToSize(matiereTitle, maxTextWidth);
+
+        let actualMaxWidth = 0;
+        lines.forEach(line => {
+            const w = doc.getTextWidth(line);
+            if (w > actualMaxWidth) actualMaxWidth = w;
+        });
+
+        const boxPaddingX = 35; // Marges généreuses à l'intérieur du cadre
+        const boxW = actualMaxWidth + boxPaddingX;
+        
+        const lineHeight = 16;  // Hauteur de ligne
+        const boxPaddingY = 30; // Marges en haut et en bas du texte
+        const boxH = boxPaddingY + (lines.length * lineHeight); 
+        
+        const boxX = centerX - (boxW / 2);
+        const boxY = 160;
+
+        // Dessin du cadre
+        doc.setDrawColor(0);
+        doc.setLineWidth(2);
+        doc.rect(boxX, boxY, boxW, boxH);
+        
+        // Impression du texte LIGNE PAR LIGNE pour forcer un centrage infaillible
+        // On calcule où doit démarrer la toute première ligne pour que le bloc soit au milieu
+        const totalTextHeight = (lines.length - 1) * lineHeight;
+        const startY = boxY + (boxH / 2) - (totalTextHeight / 2);
+
+        lines.forEach((line, index) => {
+            const yPos = startY + (index * lineHeight);
+            doc.text(line, centerX, yPos, { align: 'center', baseline: 'middle' });
+        });
+    });
+
+    doc.save(`Pochettes_Matieres_${examYear}.pdf`);
+};
+
+/**
+ * Lit nativement le fichier Excel et déclenche la bonne génération PDF selon le bouton cliqué.
+ */
+window.processLotsExcel = function(docType) {
+    const rneInput = document.getElementById('inputRneCe').value.trim().toUpperCase();
+    const fileInput = document.getElementById('excelLotsInput');
+    const feedback = document.getElementById('lotsFeedback');
+
+    if (!rneInput) return alert("Veuillez saisir le RNE de votre établissement.");
+    if (!fileInput.files || fileInput.files.length === 0) return alert("Veuillez sélectionner le fichier Excel.");
+    if (typeof XLSX === 'undefined') return alert("Erreur : La librairie SheetJS n'est pas chargée.");
+
+    feedback.innerHTML = "<span style='color: blue;'>Analyse du fichier Excel en cours...</span>";
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: ""});
+            
+            let headerIndex = -1;
+            let headers = [];
+
+            for (let i = 0; i < Math.min(20, rows.length); i++) {
+                const rowStr = rows[i].join(" ");
+                if (rowStr.includes("RNE CE") || rowStr.includes("Numéro lot")) {
+                    headerIndex = i;
+                    headers = rows[i];
+                    break;
+                }
+            }
+
+            if (headerIndex === -1) {
+                feedback.innerHTML = "<span style='color: red;'>Erreur : En-tête introuvable.</span>";
+                return;
+            }
+
+            const findIndexPartial = (arr, searchStr) => arr.findIndex(h => typeof h === 'string' && h.includes(searchStr));
+            const idxRneCE = findIndexPartial(headers, "RNE CE");
+            const idxComCor = findIndexPartial(headers, "Com Cor");
+            const idxLot = findIndexPartial(headers, "Numéro lot");
+            const idxRang = findIndexPartial(headers, "rang");
+            const idxEpreuve = findIndexPartial(headers, "Libellé épreuve");
+
+            // 1. Structure pour les Bordereaux (A3)
+            const matieresData = {
+                "FRANCAIS": { commissions: new Set(), sousLots: { "Dictée": new Set(), "Grammaire": new Set(), "Rédaction": new Set() }, lotSizes: {} },
+                "MATHEMATIQUES": { commissions: new Set(), lots: new Set(), lotSizes: {} },
+                "HISTOIRE GEOGRAPHIE EMC": { commissions: new Set(), lots: new Set(), lotSizes: {} },
+                "SCIENCES": { commissions: new Set(), lots: new Set(), lotSizes: {} }
+            };
+
+            // 2. Structure pour les Pochettes Commissions (A4)
+            const commissionsData = {};
+
+            for (let i = headerIndex + 1; i < rows.length; i++) {
+                const row = rows[i];
+                if (!row || row.length <= Math.max(idxRneCE, idxEpreuve)) continue;
+
+                const rowRne = String(row[idxRneCE]).trim().toUpperCase();
+                if (rowRne !== rneInput) continue;
+
+                const comCor = String(row[idxComCor]).trim();
+                const lotNum = String(row[idxLot]).trim();
+                const rang = parseInt(String(row[idxRang]).trim(), 10);
+                const epreuveBrut = String(row[idxEpreuve]).trim().toLowerCase();
+
+                if (isNaN(rang)) continue;
+
+                // Nettoyage du nom de l'épreuve
+                let cleanEpreuve = "";
+                if (epreuveBrut.includes("dictée")) cleanEpreuve = "Dictée";
+                else if (epreuveBrut.includes("grammaire")) cleanEpreuve = "Grammaire et compréhension";
+                else if (epreuveBrut.includes("rédaction")) cleanEpreuve = "Rédaction";
+                else if (epreuveBrut.includes("math")) cleanEpreuve = "Mathématiques";
+                else if (epreuveBrut.includes("histoire") || epreuveBrut.includes("géo") || epreuveBrut.includes("emc")) cleanEpreuve = "Histoire Géographie EMC";
+                else if (epreuveBrut.includes("science") || epreuveBrut.includes("svt") || epreuveBrut.includes("physique") || epreuveBrut.includes("technologie")) cleanEpreuve = "Sciences";
+                else cleanEpreuve = String(row[idxEpreuve]).trim();
+
+                // Peuplement Bordereaux (A3)
+                if (cleanEpreuve === "Dictée" || cleanEpreuve === "Grammaire et compréhension" || cleanEpreuve === "Rédaction") {
+                    let sousMat = cleanEpreuve === "Grammaire et compréhension" ? "Grammaire" : cleanEpreuve;
+                    matieresData["FRANCAIS"].commissions.add(comCor);
+                    matieresData["FRANCAIS"].sousLots[sousMat].add(lotNum);
+                    if (!matieresData["FRANCAIS"].lotSizes[lotNum] || rang > matieresData["FRANCAIS"].lotSizes[lotNum]) matieresData["FRANCAIS"].lotSizes[lotNum] = rang;
+                } else if (cleanEpreuve === "Mathématiques") {
+                    matieresData["MATHEMATIQUES"].commissions.add(comCor);
+                    matieresData["MATHEMATIQUES"].lots.add(lotNum);
+                    if (!matieresData["MATHEMATIQUES"].lotSizes[lotNum] || rang > matieresData["MATHEMATIQUES"].lotSizes[lotNum]) matieresData["MATHEMATIQUES"].lotSizes[lotNum] = rang;
+                } else if (cleanEpreuve === "Histoire Géographie EMC") {
+                    matieresData["HISTOIRE GEOGRAPHIE EMC"].commissions.add(comCor);
+                    matieresData["HISTOIRE GEOGRAPHIE EMC"].lots.add(lotNum);
+                    if (!matieresData["HISTOIRE GEOGRAPHIE EMC"].lotSizes[lotNum] || rang > matieresData["HISTOIRE GEOGRAPHIE EMC"].lotSizes[lotNum]) matieresData["HISTOIRE GEOGRAPHIE EMC"].lotSizes[lotNum] = rang;
+                } else if (cleanEpreuve === "Sciences") {
+                    matieresData["SCIENCES"].commissions.add(comCor);
+                    matieresData["SCIENCES"].lots.add(lotNum);
+                    if (!matieresData["SCIENCES"].lotSizes[lotNum] || rang > matieresData["SCIENCES"].lotSizes[lotNum]) matieresData["SCIENCES"].lotSizes[lotNum] = rang;
+                }
+
+                // Peuplement Pochettes Commissions (A4)
+                if (!commissionsData[comCor]) commissionsData[comCor] = { lots: {} };
+                if (!commissionsData[comCor].lots[lotNum]) commissionsData[comCor].lots[lotNum] = { label: cleanEpreuve, maxRang: 0 };
+                if (rang > commissionsData[comCor].lots[lotNum].maxRang) commissionsData[comCor].lots[lotNum].maxRang = rang;
+            }
+
+            feedback.innerHTML = "<span style='color: green;'>Génération du PDF...</span>";
+            
+            // Routage
+            if (docType === 'bordereaux') {
+                generateBordereauxPDF(matieresData, rneInput);
+            } else if (docType === 'pochettes') {
+                generatePochettesCommissionsPDF(commissionsData, rneInput);
+            } else if (docType === 'enveloppes') {
+                generateCouverturesEnveloppesPDF(commissionsData, rneInput);
+            }
+            
+            setTimeout(() => { feedback.innerHTML = ""; }, 3000);
+
+        } catch (err) {
+            console.error(err);
+            feedback.innerHTML = "<span style='color: red;'>Erreur de lecture. Le fichier Excel est peut-être corrompu.</span>";
+        }
+    };
+    reader.readAsArrayBuffer(file);
+};
+
+/**
+ * ========================================================
+ * 1. GÉNÉRATEUR A3 : BORDEREAUX D'ENVOI
+ * ========================================================
+ */
+function generateBordereauxPDF(data, rne) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a3'); 
+    const PAGE_W = 420, PAGE_H = 297, HALF_W = 210, M = 20, centerX = HALF_W + (HALF_W / 2); 
+
+    const examType = (typeof DB !== 'undefined' && DB.config && DB.config.examType) ? DB.config.examType : "DNB";
+    const examYear = (typeof DB !== 'undefined' && DB.config && DB.config.examYear) ? DB.config.examYear : new Date().getFullYear();
+    
+    let schoolName = "Établissement";
+    if (typeof DB !== 'undefined' && DB.config) {
+        const possibleKeys = ['nomEtablissement', 'nomEtab', 'etablissement', 'etabName', 'schoolName', 'college'];
+        for (const key of possibleKeys) { if (DB.config[key]) { schoolName = DB.config[key]; break; } }
+    }
+    const schoolCity = (typeof DB !== 'undefined' && DB.config && DB.config.city) ? DB.config.city : ""; 
+
+    let count = 0;
+    const drawTemplate = (matiere) => {
+        if (count > 0) doc.addPage("a3", "l");
+        count++;
+        doc.setDrawColor(200); doc.setLineDash([5, 5], 0); doc.line(HALF_W, 0, HALF_W, PAGE_H); doc.setLineDash([]); 
+
+        if (typeof addSmartLogo === 'function') addSmartLogo(doc, HALF_W + M, 15, 40); 
+
+        let currentHeaderY = 20;
+        doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.setTextColor(0);
+        doc.text(schoolName, PAGE_W - M, currentHeaderY, { align: 'right' });
+        
+        if (schoolCity) {
+            currentHeaderY += 8; doc.setFontSize(14); doc.setFont("helvetica", "italic"); doc.setTextColor(80);
+            doc.text(schoolCity, PAGE_W - M, currentHeaderY, { align: 'right' });
+        }
+        currentHeaderY += 8; doc.setFontSize(14); doc.setFont("helvetica", "normal"); doc.setTextColor(100);
+        doc.text(rne, PAGE_W - M, currentHeaderY, { align: 'right' });
+
+        doc.setFontSize(32); doc.setTextColor(44, 62, 80); 
+        doc.text(`${examType} SESSION ${examYear}`, centerX, 70, { align: 'center' });
+        doc.setFontSize(22); doc.setTextColor(100);
+        doc.text("Bordereaux envoi au centre de correction", centerX, 85, { align: 'center' });
+
+        doc.setTextColor(0); doc.setFontSize(26); 
+        doc.text(`Matière : ${matiere}`, HALF_W + M, 115);
+    };
+
+    ['MATHEMATIQUES', 'HISTOIRE GEOGRAPHIE EMC', 'SCIENCES'].forEach(mat => {
+        if (data[mat].lots.size === 0) return; 
+        drawTemplate(mat);
+        
+        let currentY = 135;
+        const comms = Array.from(data[mat].commissions).join(' / ');
+        const lots = Array.from(data[mat].lots).sort();
+        
+        let totalCopies = 0, additionStr = [];
+        lots.forEach(lot => { additionStr.push(data[mat].lotSizes[lot]); totalCopies += data[mat].lotSizes[lot]; });
+
+        doc.setFontSize(18); doc.setFont("helvetica", "normal");
+        const commsLines = doc.splitTextToSize(`Commission(s) : ${comms}`, 180);
+        doc.text(commsLines, HALF_W + M, currentY); currentY += (commsLines.length * 8) + 5; 
+        
+        const lotLines = doc.splitTextToSize(`Numéro(s) de Lot : ${lots.join(' / ')}`, 180);
+        doc.text(lotLines, HALF_W + M, currentY); currentY += (lotLines.length * 8) + 5;
+
+        const copyLines = doc.splitTextToSize(`Nombre de copies : ${additionStr.join(' + ')} = ${totalCopies}`, 180);
+        doc.text(copyLines, HALF_W + M, currentY); currentY += (copyLines.length * 8) + 15;
+
+        let yCheck = Math.max(currentY, 190);
+        doc.setFontSize(20); doc.setFont("helvetica", "bold"); doc.text("Éléments envoyés :", HALF_W + M, yCheck);
+        
+        doc.setFontSize(16); doc.setFont("helvetica", "normal");
+        ["Copies", "Feuilles d'émargement", "PV de séance", "Bandeaux d'anonymat"].forEach((el, idx) => {
+            doc.rect(HALF_W + M + 10, yCheck + 12 + (idx * 12) - 5, 6, 6); 
+            doc.text(el, HALF_W + M + 22, yCheck + 12 + (idx * 12));
+        });
+    });
+
+    if (data["FRANCAIS"].commissions.size > 0) {
+        drawTemplate("FRANCAIS");
+        let currentY = 135;
+        const commsLines = doc.splitTextToSize(`Commission(s) : ${Array.from(data["FRANCAIS"].commissions).join(' / ')}`, 180);
+        doc.setFontSize(18); doc.setFont("helvetica", "normal");
+        doc.text(commsLines, HALF_W + M, currentY); currentY += (commsLines.length * 8) + 5;
+
+        doc.text("Numéro(s) de Lot :", HALF_W + M, currentY); currentY += 8;
+        doc.setFontSize(14); 
+        
+        let totalCopies = 0, additionStr = [];
+        ['Dictée', 'Grammaire', 'Rédaction'].forEach(sousMat => {
+            const lots = Array.from(data["FRANCAIS"].sousLots[sousMat]).sort();
+            if (lots.length > 0) {
+                const sousLotLines = doc.splitTextToSize(`${sousMat.toUpperCase()} : ${lots.join(' / ')}`, 140); 
+                doc.text(sousLotLines, HALF_W + M + 45, currentY); currentY += (sousLotLines.length * 7) + 2; 
+                if (sousMat === 'Dictée' || additionStr.length === 0) {
+                    additionStr = []; totalCopies = 0;
+                    lots.forEach(lot => { additionStr.push(data["FRANCAIS"].lotSizes[lot]); totalCopies += data["FRANCAIS"].lotSizes[lot]; });
+                }
+            }
+        });
+
+        currentY += 5; doc.setFontSize(18);
+        const copyLines = doc.splitTextToSize(`Nombre de copies : ${additionStr.join(' + ')} = ${totalCopies}`, 180);
+        doc.text(copyLines, HALF_W + M, currentY); currentY += (copyLines.length * 8) + 15;
+
+        let yCheck = Math.max(currentY, 190);
+        doc.setFontSize(20); doc.setFont("helvetica", "bold"); doc.text("Éléments envoyés :", HALF_W + M, yCheck);
+        doc.setFontSize(16); doc.setFont("helvetica", "normal");
+        ["Copies", "Feuilles d'émargement", "PV de séance", "Bandeaux d'anonymat"].forEach((el, idx) => {
+            doc.rect(HALF_W + M + 10, yCheck + 12 + (idx * 12) - 5, 6, 6); doc.text(el, HALF_W + M + 22, yCheck + 12 + (idx * 12));
+        });
+    }
+
+    if (count === 0) return alert("Aucune donnée trouvée !");
+    doc.save(`Bordereaux_Lots_${rne}_${examYear}.pdf`);
+}
+
+/**
+ * ==============================================================================
+ * 2. GÉNÉRATEUR A3 PORTRAIT : POCHETTES PAR COMMISSION (MOITIÉ BASSE)
+ * CORRECTION : Copie stricte de la capture (Titres en haut, vrai tableau avec bordures).
+ * ==============================================================================
+ */
+function generatePochettesCommissionsPDF(commissions, rne) {
+    if (typeof window.jspdf === 'undefined') return alert("Erreur : jsPDF non chargé.");
+    const { jsPDF } = window.jspdf;
+    
+    // Format A3 Portrait
+    const doc = new jsPDF('p', 'mm', 'a3'); 
+    const PAGE_W = 297;
+    const M = 20; 
+    
+    // Décalage pour imprimer sur la moitié basse (Couverture une fois pliée)
+    const Y_OFFSET = 210; 
+
+    const examType = (typeof DB !== 'undefined' && DB.config && DB.config.examType) ? DB.config.examType : "DNB";
+    const examYear = (typeof DB !== 'undefined' && DB.config && DB.config.examYear) ? DB.config.examYear : new Date().getFullYear();
+    
+    let schoolName = "Établissement non configuré";
+    if (typeof DB !== 'undefined' && DB.config) {
+        const possibleKeys = ['nomEtablissement', 'nomEtab', 'etablissement', 'etabName', 'schoolName', 'college'];
+        for (const key of possibleKeys) { if (DB.config[key]) { schoolName = DB.config[key]; break; } }
+    }
+    const schoolCity = (typeof DB !== 'undefined' && DB.config && DB.config.city) ? DB.config.city : ""; 
+    const schoolFullName = `${rne} ${schoolName}` + (schoolCity ? ` - ${schoolCity}` : "");
+
+    let count = 0;
+
+    Object.keys(commissions).sort().forEach(comCor => {
+        if (count > 0) doc.addPage("a3", "p");
+        count++;
+
+        const comm = commissions[comCor];
+
+        // Regroupement des lots par épreuve
+        const epreuvesGrouped = {};
+        Object.keys(comm.lots).sort().forEach(lotNum => {
+            const lotInfo = comm.lots[lotNum];
+            if (!epreuvesGrouped[lotInfo.label]) epreuvesGrouped[lotInfo.label] = { lots: [], totalRang: 0 };
+            epreuvesGrouped[lotInfo.label].lots.push(lotNum);
+            epreuvesGrouped[lotInfo.label].totalRang += lotInfo.maxRang;
+        });
+
+        // Calcul du total de copies
+        let totalCopies = 0;
+        const isFrancais = !!epreuvesGrouped["Dictée"] || !!epreuvesGrouped["Grammaire et compréhension"] || !!epreuvesGrouped["Rédaction"];
+        if (isFrancais) {
+            if (epreuvesGrouped["Dictée"]) totalCopies = epreuvesGrouped["Dictée"].totalRang;
+            else totalCopies = Object.values(epreuvesGrouped)[0].totalRang;
+        } else {
+            Object.values(epreuvesGrouped).forEach(g => { totalCopies += g.totalRang; });
+        }
+
+        // ==========================================
+        // 1. BLOC EN-TÊTE GAUCHE (Logo + Nom Collège)
+        // ==========================================
+        
+        // Logo agrandi
+        if (typeof addSmartLogo === 'function') {
+            addSmartLogo(doc, M, Y_OFFSET + 15, 50); 
+        }
+        
+        // Un seul texte pour l'établissement en dessous du logo
+        doc.setFontSize(14); 
+        doc.setFont("helvetica", "bold"); 
+        doc.setTextColor(0);
+        doc.text(schoolFullName, M, Y_OFFSET + 65); 
+
+        // ==========================================
+        // 2. BLOC EN-TÊTE DROIT (Infos Commission)
+        // ==========================================
+        
+        // On aligne ce bloc à gauche, mais à partir d'une position X avancée (ex: 160mm)
+        // pour créer un bloc propre sur la droite de la page.
+        const rightBlockX = 160;
+        let rightBlockY = Y_OFFSET + 30;
+
+        doc.setFontSize(22); 
+        doc.setFont("helvetica", "bold");
+        doc.text(`${examType} SESSION ${examYear}`, rightBlockX, rightBlockY);
+        
+        rightBlockY += 12;
+        doc.setFontSize(20); 
+        doc.setFont("helvetica", "normal");
+        doc.text(`Commission ${comCor}`, rightBlockX, rightBlockY);
+        
+        rightBlockY += 12;
+        doc.setFontSize(20);
+        doc.text(`Nb Copies : ${totalCopies}`, rightBlockX, rightBlockY);
+
+
+        // ==========================================
+        // 3. TABLEAU DES LOTS (Avec bordures réelles)
+        // ==========================================
+        
+        let tableY = Y_OFFSET + 85;
+        const col1X = M;               // Colonne "Lot(s)"
+        const col2X = M + 45;          // Colonne "Epreuve(s)"
+        const tableW = PAGE_W - (2 * M); // Largeur totale du tableau
+        const col3X = M + tableW;      // Fin du tableau
+
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.4);
+
+        // Ligne supérieure de l'en-tête
+        doc.line(col1X, tableY, col3X, tableY);
+
+        doc.setFontSize(14); 
+        doc.setFont("helvetica", "bold");
+        doc.text("Lot(s)", col1X + 3, tableY + 6);
+        doc.text("Epreuve(s)", col2X + 3, tableY + 6);
+        
+        tableY += 9;
+        // Ligne sous l'en-tête
+        doc.line(col1X, tableY, col3X, tableY);
+
+        // Mémorisation du début du tableau pour tracer les lignes verticales à la fin
+        const topTableY = Y_OFFSET + 85; 
+
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "normal");
+        
+        Object.keys(epreuvesGrouped).forEach(label => {
+            const lotText = epreuvesGrouped[label].lots.join(" + ");
+            
+            // Textes sur plusieurs lignes si très longs
+            const lotLines = doc.splitTextToSize(lotText, 40);
+            const labelLines = doc.splitTextToSize(label, tableW - 45 - 5);
+            const nbLines = Math.max(lotLines.length, labelLines.length);
+
+            const rowHeight = (nbLines * 7) + 4;
+            
+            doc.text(lotLines, col1X + 3, tableY + 6);
+            doc.text(labelLines, col2X + 3, tableY + 6);
+            
+            tableY += rowHeight;
+            // Ligne horizontale sous chaque rangée
+            doc.line(col1X, tableY, col3X, tableY); 
+        });
+
+        // Tracé des lignes verticales du tableau (gauche, milieu, droite)
+        doc.line(col1X, topTableY, col1X, tableY); // Bordure gauche
+        doc.line(col2X, topTableY, col2X, tableY); // Séparateur central
+        doc.line(col3X, topTableY, col3X, tableY); // Bordure droite
+    });
+
+    if (count === 0) return alert("Aucune donnée trouvée !");
+    doc.save(`Pochettes_Commissions_A3_${rne}_${examYear}.pdf`);
+}
+
+/**
+ * ==============================================================================
+ * 3. GÉNÉRATEUR A4 PAYSAGE : COUVERTURES D'ENVELOPPES
+ * Identique à la moitié basse du A3 Portrait.
+ * ==============================================================================
+ */
+function generateCouverturesEnveloppesPDF(commissions, rne) {
+    if (typeof window.jspdf === 'undefined') return alert("Erreur : jsPDF non chargé.");
+    const { jsPDF } = window.jspdf;
+    
+    // Format A4 Paysage ('l' pour landscape)
+    const doc = new jsPDF('l', 'mm', 'a4'); 
+    const PAGE_W = 297; 
+    const M = 20; 
+    
+    // AUCUN DÉCALAGE (On commence en haut de la page A4)
+    const Y_OFFSET = 0; 
+
+    const examType = (typeof DB !== 'undefined' && DB.config && DB.config.examType) ? DB.config.examType : "DNB";
+    const examYear = (typeof DB !== 'undefined' && DB.config && DB.config.examYear) ? DB.config.examYear : new Date().getFullYear();
+    
+    let schoolName = "Établissement non configuré";
+    if (typeof DB !== 'undefined' && DB.config) {
+        const possibleKeys = ['nomEtablissement', 'nomEtab', 'etablissement', 'etabName', 'schoolName', 'college'];
+        for (const key of possibleKeys) { if (DB.config[key]) { schoolName = DB.config[key]; break; } }
+    }
+    const schoolCity = (typeof DB !== 'undefined' && DB.config && DB.config.city) ? DB.config.city : ""; 
+    const schoolFullName = `${rne} ${schoolName}` + (schoolCity ? ` - ${schoolCity}` : "");
+
+    let count = 0;
+
+    Object.keys(commissions).sort().forEach(comCor => {
+        if (count > 0) doc.addPage("a4", "l");
+        count++;
+
+        const comm = commissions[comCor];
+        const epreuvesGrouped = {};
+        
+        Object.keys(comm.lots).sort().forEach(lotNum => {
+            const lotInfo = comm.lots[lotNum];
+            if (!epreuvesGrouped[lotInfo.label]) epreuvesGrouped[lotInfo.label] = { lots: [], totalRang: 0 };
+            epreuvesGrouped[lotInfo.label].lots.push(lotNum);
+            epreuvesGrouped[lotInfo.label].totalRang += lotInfo.maxRang;
+        });
+
+        let totalCopies = 0;
+        const isFrancais = !!epreuvesGrouped["Dictée"] || !!epreuvesGrouped["Grammaire et compréhension"] || !!epreuvesGrouped["Rédaction"];
+        if (isFrancais) {
+            if (epreuvesGrouped["Dictée"]) totalCopies = epreuvesGrouped["Dictée"].totalRang;
+            else totalCopies = Object.values(epreuvesGrouped)[0].totalRang;
+        } else {
+            Object.values(epreuvesGrouped).forEach(g => { totalCopies += g.totalRang; });
+        }
+
+        // 1. BLOC EN-TÊTE GAUCHE
+        if (typeof addSmartLogo === 'function') {
+            addSmartLogo(doc, M, Y_OFFSET + 15, 50); 
+        }
+        
+        doc.setFontSize(14); 
+        doc.setFont("helvetica", "bold"); 
+        doc.setTextColor(0);
+        doc.text(schoolFullName, M, Y_OFFSET + 65); 
+
+        // 2. BLOC EN-TÊTE DROIT 
+        const rightBlockX = 160;
+        let rightBlockY = Y_OFFSET + 30;
+
+        doc.setFontSize(22); 
+        doc.setFont("helvetica", "bold");
+        doc.text(`${examType} SESSION ${examYear}`, rightBlockX, rightBlockY);
+        
+        rightBlockY += 12;
+        doc.setFontSize(20); 
+        doc.setFont("helvetica", "normal");
+        doc.text(`Commission ${comCor}`, rightBlockX, rightBlockY);
+        
+        rightBlockY += 12;
+        doc.setFontSize(20);
+        doc.text(`Nb Copies : ${totalCopies}`, rightBlockX, rightBlockY);
+
+        // 3. TABLEAU DES LOTS 
+        let tableY = Y_OFFSET + 85;
+        const col1X = M;               
+        const col2X = M + 45;          
+        const tableW = PAGE_W - (2 * M); 
+        const col3X = M + tableW;      
+
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.4);
+        doc.line(col1X, tableY, col3X, tableY);
+
+        doc.setFontSize(14); 
+        doc.setFont("helvetica", "bold");
+        doc.text("Lot(s)", col1X + 3, tableY + 6);
+        doc.text("Epreuve(s)", col2X + 3, tableY + 6);
+        
+        tableY += 9;
+        doc.line(col1X, tableY, col3X, tableY);
+
+        const topTableY = Y_OFFSET + 85; 
+
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "normal");
+        
+        Object.keys(epreuvesGrouped).forEach(label => {
+            const lotText = epreuvesGrouped[label].lots.join(" + ");
+            const lotLines = doc.splitTextToSize(lotText, 40);
+            const labelLines = doc.splitTextToSize(label, tableW - 45 - 5);
+            const nbLines = Math.max(lotLines.length, labelLines.length);
+
+            const rowHeight = (nbLines * 7) + 4;
+            
+            doc.text(lotLines, col1X + 3, tableY + 6);
+            doc.text(labelLines, col2X + 3, tableY + 6);
+            
+            tableY += rowHeight;
+            doc.line(col1X, tableY, col3X, tableY); 
+        });
+
+        doc.line(col1X, topTableY, col1X, tableY); 
+        doc.line(col2X, topTableY, col2X, tableY); 
+        doc.line(col3X, topTableY, col3X, tableY); 
+    });
+
+    if (count === 0) return alert("Aucune donnée trouvée !");
+    doc.save(`Couvertures_Enveloppes_A4_${rne}_${examYear}.pdf`);
+}
+
 // ----------------------
 </script>
 
