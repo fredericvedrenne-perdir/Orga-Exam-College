@@ -702,6 +702,25 @@ input:checked + .slider-modern:before { transform: translateX(22px); }
     accent-color: #0d6efd; /* Case cochée en bleu si supporté */
 }
 
+/* Agrandi la zone de prévisualisation des notes */
+#res-import .card div[style*="max-height:500px"] {
+    max-height: 75vh !important; /* Utilise 75% de la hauteur de l'écran au lieu de 500px */
+}
+
+/* Optionnel : Améliore la visibilité du tableau */
+#tableGradesPreview {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#tableGradesPreview th {
+    position: sticky; /* Garde l'en-tête visible quand on scrolle vers le bas */
+    top: 0;
+    z-index: 10;
+    background: #f9f9f9;
+    box-shadow: 0 2px 2px -1px rgba(0,0,0,0.4);
+}
+
 </style>
 </head>
 <body>
@@ -757,6 +776,17 @@ input:checked + .slider-modern:before { transform: translateX(22px); }
             <button class="submenu-item" onclick="nav('res-datavis', this)">📈 DataVisualisation</button>
             <button class="submenu-item" onclick="nav('res-simul', this)">🔮 Simulation</button>
         </div>
+<button class="menu-item" id="btnOral" onclick="toggleSubmenu('blocOral', this)">🗣️ Épreuve Orale</button>
+<div id="blocOral" class="submenu">
+    <button class="submenu-item" onclick="nav('sec-oral-config', this)">Configuration</button>
+    <button class="submenu-item" onclick="nav('sec-oral-eleves', this)">Élèves</button>
+    <button class="submenu-item" onclick="nav('sec-oral-jurys', this)">Jurys</button>
+    <button class="submenu-item" onclick="nav('sec-oral-repart', this)">Répartition</button>
+    <button class="submenu-item" onclick="nav('sec-oral-grille', this)">Grille d'évaluation</button>
+    <button class="submenu-item" onclick="nav('sec-oral-secretariat', this)">Secrétariat</button>
+    <button class="submenu-item" onclick="nav('sec-oral-import', this)">Import des notes</button>
+    <button class="submenu-item" onclick="nav('sec-oral-resultats', this)">Résultats</button>
+</div>
         <div style="margin-top: auto; padding: 20px;">
             <button id="btnGlobalSave" class="btn btn-dark" style="width: 100%; transition:all 0.3s;" onclick="saveGlobalData()">💾 Sauvegarder Projet</button>
             <div style="margin-top: 10px;">
@@ -1470,6 +1500,62 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
     </div>
 </div>
 
+<div id="sec-oral-config" class="section" ;">
+    <div class="card">
+        <h2>⚙️ Configuration de l'Oral</h2>
+        <p>Menu en construction...</p>
+    </div>
+</div>
+
+<div id="sec-oral-eleves" class="section" ;">
+    <div class="card">
+        <h2>🎓 Élèves (Candidats à l'oral)</h2>
+        <p>Menu en construction...</p>
+    </div>
+</div>
+
+<div id="sec-oral-jurys" class="section" ;">
+    <div class="card">
+        <h2>👨‍🏫 Constitution des Jurys</h2>
+        <p>Menu en construction...</p>
+    </div>
+</div>
+
+<div id="sec-oral-repart" class="section" ;">
+    <div class="card">
+        <h2>📅 Répartition (Plannings & Convocations)</h2>
+        <p>Menu en construction...</p>
+    </div>
+</div>
+
+<div id="sec-oral-grille" class="section" ;">
+    <div class="card">
+        <h2>📋 Grille d'évaluation (Génération PDF)</h2>
+        <p>Menu en construction...</p>
+    </div>
+</div>
+
+<div id="sec-oral-secretariat" class="section" ;">
+    <div class="card">
+        <h2>🗂️ Secrétariat de l'Oral (Listes d'émargement, etc.)</h2>
+        <p>Menu en construction...</p>
+    </div>
+</div>
+
+<div id="sec-oral-import" class="section" ;">
+    <div class="card">
+        <h2>📥 Import / Saisie des notes</h2>
+        <p>Menu en construction...</p>
+    </div>
+</div>
+
+<div id="sec-oral-resultats" class="section" ;">
+    <div class="card">
+        <h2>📊 Résultats de l'Oral</h2>
+        <p>Menu en construction...</p>
+    </div>
+</div>
+
 <div id="printArea" style="display: none;" aria-hidden="true"></div>
 
 <div id="corr-repartition" class="section">
@@ -1729,7 +1815,7 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
             </div>
         </div>
         
-        <div style="max-height:500px;overflow-y:auto; border:1px solid #ddd;">
+<div style="max-height:500px;overflow-y:auto; border:1px solid #ddd;">
             <table id="tableGradesPreview">
                 <thead>
                     <tr style="background:#f9f9f9; position:sticky; top:0;">
@@ -2251,10 +2337,10 @@ function nav(id, btn) {
         if(id.startsWith('data-')) pid = "btnData";
         else if(id.startsWith('res-')) pid = "btnRes";
         else if(id.startsWith('convoc-')) pid = "btnConvoc";
-        
         // --- AJOUT PLANNING ---
         else if(id.startsWith('planning-')) pid = "btnPlanning";
-        // ----------------------
+        // --- AJOUT ORAL ---
+        else if(id.startsWith('sec-oral-')) pid = "btnOral";
 
         if(pid) {
             const parent = document.getElementById(pid);
@@ -2432,11 +2518,17 @@ window.getExamTitle = function() {
 
 // Petit utilitaire pour nettoyer les nombres (transforme "14,5" en 14.5 et rejette "ABS")
 function cleanNumber(val) {
+    // On vérifie strictement si la valeur est absente
     if (val === undefined || val === null || val === "") return null;
+    
+    // Si c'est déjà un nombre (comme 0), on le retourne tel quel
     if (typeof val === 'number') return val;
-    // Remplace virgule par point et enlève les espaces
+    
+    // Nettoyage de la chaîne (remplace virgule par point pour le format numérique JS)
     let vStr = val.toString().replace(',', '.').trim();
     let num = parseFloat(vStr);
+    
+    // Retourne le nombre (même si c'est 0) ou null si ce n'est pas un chiffre valide
     return isNaN(num) ? null : num;
 }
 
@@ -2836,12 +2928,16 @@ function executeImport(data, mapping, isStrictReplace) {
         const student = findStudentSecure(rawNom, rawPrenom, rawClasse, rawAno);
 
         if (student) {
-            const resolve = (key) => {
-                if (!mapping[key]) return student.grades?.[key] || null;
-                const valExcel = row[mapping[key]];
-                const valClean = cleanNumber(valExcel);
-                return valClean !== null ? valClean : (isStrictReplace ? null : (student.grades?.[key] || null));
-            };
+            // Cherchez cette section dans la fonction executeImport :
+const resolve = (key) => {
+    if (!mapping[key]) return student.grades?.[key] || null;
+    const valExcel = row[mapping[key]];
+    const valClean = cleanNumber(valExcel);
+    
+    // MODIFICATION ICI : On vérifie strictement null ou undefined
+    // valClean !== null permet de laisser passer le chiffre 0
+    return valClean !== null ? valClean : (isStrictReplace ? null : (student.grades?.[key] || null));
+};
 
             student.grades = {
                 ...student.grades, // Préserve oral, genAvg, etc.
@@ -3119,16 +3215,19 @@ function renderGrades() {
 
     filteredStudents.forEach(s => {
         const g = s.grades || {};
-        const noteHGCalcul = getNoteHGEMC(s); 
-        
+        const noteHGCalcul = getNoteHGEMC(s);
         let sc = 0, c = 0;
-        if(g.svt != null) { sc += parseFloat(g.svt); c++; }
-        if(g.pc != null) { sc += parseFloat(g.pc); c++; }
-        if(g.tech != null) { sc += parseFloat(g.tech); c++; }
+
+        // CORRECTIONS DES TESTS DE PRÉSENCE (Utiliser !== null)
+        if(g.svt !== null && g.svt !== undefined) { sc += parseFloat(g.svt); c++; }
+        if(g.pc !== null && g.pc !== undefined) { sc += parseFloat(g.pc); c++; }
+        if(g.tech !== null && g.tech !== undefined) { sc += parseFloat(g.tech); c++; }
+
         const moySci = c > 0 ? (sc / c).toFixed(1) : '-';
 
-        // CORRECTION : v != null permet de filtrer à la fois null ET undefined
-        const gradesList = [g.fr, g.math, noteHGCalcul, c > 0 ? parseFloat(moySci) : null].filter(v => v != null && !isNaN(v));
+        // Filtrage pour la moyenne DNB (Prendre en compte le 0)
+        const gradesList = [g.fr, g.math, noteHGCalcul, c > 0 ? parseFloat(moySci) : null]
+            .filter(v => v !== null && v !== undefined && !isNaN(v));
         
         const moyDNB = gradesList.length > 0 
             ? (gradesList.reduce((a, b) => parseFloat(a) + parseFloat(b), 0) / gradesList.length).toFixed(1) 
@@ -9850,18 +9949,16 @@ window.exportStudentsToExcel = function() {
 function getNoteHGEMC(student) {
     if (!student.grades) return null;
     const g = student.grades;
-    
-    // Si notes séparées : calcul pondéré (HG*1.5 + EMC*0.5) / 2
+
     if (DB.config.splitHGEMC) {
+        // Test strict sur null et undefined pour autoriser le 0
         const hg = (g.hg !== null && g.hg !== undefined) ? parseFloat(g.hg) : null;
         const emc = (g.emc !== null && g.emc !== undefined) ? parseFloat(g.emc) : null;
         
         if (hg === null && emc === null) return null;
-        // On calcule la moyenne pondérée ramenée sur 20
         return ((hg || 0) * 1.5 + (emc || 0) * 0.5) / 2;
-    } 
+    }
     
-    // Si note unique : on retourne simplement la note HG
     return (g.hg !== null && g.hg !== undefined) ? parseFloat(g.hg) : null;
 }
 
