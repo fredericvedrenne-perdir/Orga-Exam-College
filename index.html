@@ -2253,6 +2253,45 @@ let firstUnsavedTime = null; // Date de la 1ère modif non sauvegardée
 const SAVE_ALERT_DELAY = 5 * 60 * 1000; // 10 minutes en millisecondes
 // const SAVE_ALERT_DELAY = 10 * 1000; // Décommentez cette ligne pour tester (10 secondes)
 
+// Fonction d'auto-réparation à ajouter dans tes scripts globaux
+function sanitizeBackupIDs() {
+    if (!DB.students || DB.students.length === 0) return;
+
+    const seenIds = new Set();
+    const idChanges = {}; // Dictionnaire de traçabilité des mutations
+
+    // 1. Détection et réparation des doublons
+    DB.students.forEach(student => {
+        // Si l'ID n'existe pas ou s'il a déjà été attribué à un précédent élève
+        if (!student.id || seenIds.has(student.id)) {
+            const oldId = student.id;
+            const newId = crypto.randomUUID(); // Génération standardisée
+            student.id = newId;
+            
+            // On mémorise la mutation en utilisant une empreinte stricte (Nom+Prénom)
+            idChanges[`${oldId}_${student.nom}_${student.prenom}`] = newId;
+        }
+        seenIds.add(student.id);
+    });
+
+    // 2. Propagation : Mise à jour des clés étrangères dans le module Corrections
+    if (DB.corrections && DB.corrections.lots) {
+        Object.keys(DB.corrections.lots).forEach(subject => {
+            DB.corrections.lots[subject].forEach(lot => {
+                if (lot.copies) {
+                    lot.copies.forEach(copy => {
+                        const changeKey = `${copy.id}_${copy.nom}_${copy.prenom}`;
+                        // Si cet élève a subi une mutation d'ID, on met à jour sa copie
+                        if (idChanges[changeKey]) {
+                            copy.id = idChanges[changeKey]; 
+                        }
+                    });
+                }
+            });
+        });
+    }
+}
+
 function setDirectorCiv(val) {
     DB.config.director.civ = val;
     const sActive = "padding:12px; border:2px solid #3498db; background:#ebf5fb; border-radius:8px; cursor:pointer; text-align:center; transition:0.2s; font-weight:bold; color:#2c3e50; transform:translateY(-2px); box-shadow:0 3px 5px rgba(0,0,0,0.1);";
@@ -2808,28 +2847,24 @@ function processMapping() {
     }
 }
 
-// --- MOTEUR IMPORT ÉLÈVES ---
 function executeStudentImport(data, mapping, isStrictReplace) {
     let count = 0;
     
-    // Si mode remplacement strict, on vide la base avant !
     if (isStrictReplace && confirm("Attention : Le mode Remplacement va effacer tous les élèves existants. Continuer ?")) {
         DB.students = [];
     }
 
     data.forEach(row => {
-        // On récupère les valeurs via le mapping
-        // Si le mapping est vide (""), row[""] sera undefined
         const nom = mapping.nom ? row[mapping.nom] : null;
         
         if (nom) {
-            // Création de l'objet
+            // CORRECTION CHIRURGICALE : Remplacement par l'API Web Crypto
             const newS = {
-                id: Date.now() + Math.random(),
+                id: crypto.randomUUID(), // <-- Nouvelle génération d'ID standard et sécurisée
                 nom: String(nom).toUpperCase().trim(),
                 prenom: mapping.prenom && row[mapping.prenom] ? String(row[mapping.prenom]).trim() : "",
                 classe: mapping.classe && row[mapping.classe] ? String(row[mapping.classe]).trim() : "Non Classé",
-                sexe: "M", // Valeur par défaut
+                sexe: "M", 
                 mef: mapping.mef && row[mapping.mef] ? String(row[mapping.mef]).trim() : "",
                 anonymat: mapping.anonymat && row[mapping.anonymat] ? String(row[mapping.anonymat]).trim() : "",
                 tt: false,
@@ -4106,8 +4141,22 @@ window.deleteTeacher = function(index) {
 }
     function openStudentModal(){document.getElementById('modStNom').value=""; document.getElementById('studentModal').style.display='flex';}
     function closeStudentModal(){document.getElementById('studentModal').style.display='none';}
-    function saveNewStudent(){ const n=document.getElementById('modStNom').value, p=document.getElementById('modStPrenom').value; if(n&&p){ DB.students.push({id:Date.now(),nom:n,prenom:p,classe:document.getElementById('modStClasse').value,sexe:document.getElementById('modStSexe').value,tt:document.getElementById('modStTT').checked}); renderStudents(); closeStudentModal(); } }
-    function openTeacherModal(){ document.getElementById('modTeaNom').value=""; document.getElementById('teacherModal').style.display='flex';}
+function saveNewStudent(){ 
+    const n=document.getElementById('modStNom').value, p=document.getElementById('modStPrenom').value; 
+    if(n&&p){ 
+        // CORRECTION CHIRURGICALE : id: crypto.randomUUID()
+        DB.students.push({
+            id: crypto.randomUUID(), 
+            nom: String(n).toUpperCase().trim(), // Ajout d'une normalisation métier
+            prenom: String(p).trim(),
+            classe: document.getElementById('modStClasse').value,
+            sexe: document.getElementById('modStSexe').value,
+            tt: document.getElementById('modStTT').checked
+        }); 
+        renderStudents(); 
+        closeStudentModal(); 
+    } 
+}    function openTeacherModal(){ document.getElementById('modTeaNom').value=""; document.getElementById('teacherModal').style.display='flex';}
     function closeTeacherModal(){document.getElementById('teacherModal').style.display='none';}
     function saveNewTeacher(){ const n=document.getElementById('modTeaNom').value; if(n){ DB.teachers.push({civ:document.getElementById('modTeaCiv').value, nom:n, prenom:document.getElementById('modTeaPrenom').value, matiere:document.getElementById('modTeaMatiere').value}); renderTeachers(); closeTeacherModal(); } }
     function toggleDistribLock() { if(!DB.uiState.locked.distrib) DB.uiState.locked.distrib = false; DB.uiState.locked.distrib = !DB.uiState.locked.distrib; updateDistribLock(); }
@@ -6187,7 +6236,7 @@ function checkSaveStatus() {
     r.onload = e => { 
         try { 
             DB = JSON.parse(e.target.result); 
-            
+            sanitizeBackupIDs();
             // 1. ON FORCE LE VERROUILLAGE (Cadenas fermés à l'import)
             DB.uiState = { 
                 locked: { students: true, rooms: true, teachers: true, distrib: true, grades: true, simul: true } 
@@ -6980,7 +7029,7 @@ function autoSave() {
                     if(confirm("Attention : Cela va écraser les données actuelles par la sauvegarde automatique. Continuer ?")) {
                         try {
                             DB = JSON.parse(backup);
-                            
+                            sanitizeBackupIDs();
                             // A. Initialisation des défauts (Migration)
                             if(!DB.config.labels) DB.config.labels = JSON.parse(JSON.stringify(DEFAULT_LABELS));
                             if(!DB.config.scienceSubjects) DB.config.scienceSubjects = ['SVT', 'PC', 'TECH'];
