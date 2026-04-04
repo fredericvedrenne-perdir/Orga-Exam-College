@@ -721,6 +721,106 @@ input:checked + .slider-modern:before { transform: translateX(22px); }
     box-shadow: 0 2px 2px -1px rgba(0,0,0,0.4);
 }
 
+/* --- Styles de la modale et des tuiles (CORRECTION DÉFINITIVE ASCENSEUR) --- */
+.custom-dialog {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    padding: 0;
+    
+    /* 1. Modèle de boîte strict pour empêcher les dépassements */
+    box-sizing: border-box;
+    
+    /* 2. Dimensions fluides et contraintes */
+    width: 90%;          /* Toujours une marge de 5% de chaque côté sur petit écran */
+    max-width: 450px;    /* Taille max idéale sur ordinateur */
+    margin: auto;        /* Assure un centrage parfait */
+}
+
+/* Application du modèle de boîte à tous les éléments internes de la modale */
+.custom-dialog * {
+    box-sizing: border-box; 
+}
+
+.custom-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.dialog-header, .dialog-body, .dialog-footer {
+    padding: 15px 20px;
+    width: 100%;
+}
+
+.dialog-header {
+    background-color: #2c3e50;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.dialog-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #ffffff; /* Texte blanc contrasté (Norme RGAA) */
+}
+
+.dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    border-top: 1px solid #eee;
+}
+
+/* Les Tuiles */
+.tiles-container {
+    display: flex;
+    gap: 15px;
+    margin-top: 15px;
+    flex-wrap: wrap; /* Autorise le passage à la ligne */
+}
+
+.tile-label {
+    /* Flex-grow: 1, Flex-shrink: 1, Flex-basis: 140px */
+    flex: 1 1 140px; 
+    cursor: pointer;
+    min-width: 0; /* Autorise la réduction de la tuile sans casser le parent */
+}
+
+.tile-label input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.tile-content {
+    border: 2px solid #ccc;
+    border-radius: 6px;
+    padding: 15px 10px;
+    text-align: center;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    height: 100%;
+}
+
+.tile-content span { font-size: 0.85rem; color: #666; }
+
+.tile-label input[type="radio"]:checked + .tile-content {
+    border-color: #3498db;
+    background-color: #ebf5fb;
+}
+
+/* Boutons */
+.btn-cancel, .btn-validate {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.btn-cancel { background-color: #e0e0e0; color: #333; }
+.btn-validate { background-color: #3498db; color: white; }
+.btn-validate:hover { background-color: #2980b9; }
+
 </style>
 </head>
 <body>
@@ -2157,6 +2257,37 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
         </div>
     </div>
 </div>
+
+<dialog id="modal-export-pdf" class="custom-dialog">
+    <div class="dialog-header">
+        <h3>Options d'impression des listes</h3>
+    </div>
+    <div class="dialog-body">
+        <p>Veuillez choisir le format d'affichage :</p>
+        <div class="tiles-container">
+            <label class="tile-label">
+                <input type="radio" name="choix-anonymat" value="avec" checked>
+                <div class="tile-content">
+                    <strong>Avec Anonymat</strong>
+                    <span>Affiche la colonne des numéros</span>
+                </div>
+            </label>
+            
+            <label class="tile-label">
+                <input type="radio" name="choix-anonymat" value="sans">
+                <div class="tile-content">
+                    <strong>Sans Anonymat</strong>
+                    <span>Masque la colonne pour l'affichage public</span>
+                </div>
+            </label>
+        </div>
+    </div>
+    <div class="dialog-footer">
+        <button type="button" id="btn-annuler-pdf" class="btn-cancel">Annuler</button>
+        <button type="button" id="btn-valider-pdf" class="btn-validate">Valider</button>
+    </div>
+</dialog>
+
 
 <div id="mappingModal" class="modal-overlay" style="display:none;">
     <div class="modal-content" style="max-width: 950px; padding: 0;">
@@ -4607,10 +4738,48 @@ function executeDistribution() {
         
         return 60; 
     }/**
- * Génère le PDF des listes d'affichage avec ajout de l'effectif de la salle
- * @why Permet un contrôle rapide du nombre d'élèves par les surveillants.
+/**
+ * @why Initialise les écouteurs d'événements pour la modale d'export PDF.
+ * Doit être appelé une fois au chargement de la page.
  */
-function exportDisplayPDF() {
+function initExportPDFModal() {
+    const modal = document.getElementById('modal-export-pdf');
+    const btnAnnuler = document.getElementById('btn-annuler-pdf');
+    const btnValider = document.getElementById('btn-valider-pdf');
+
+    // 1. Action Annuler : on ferme simplement la modale
+    btnAnnuler.addEventListener('click', () => {
+        modal.close();
+    });
+
+    // 2. Action Valider : on lit la tuile sélectionnée et on lance la génération
+    btnValider.addEventListener('click', () => {
+        const choix = document.querySelector('input[name="choix-anonymat"]:checked').value;
+        const showAnonymity = (choix === 'avec');
+        
+        modal.close(); // On ferme la pop-up
+        generateDisplayPDF(showAnonymity); // On génère le PDF
+    });
+}
+
+// Lancement de l'initialisation au chargement du DOM
+document.addEventListener('DOMContentLoaded', initExportPDFModal);
+
+
+/**
+ * Fonction appelée par votre bouton "Générer les listes" dans l'interface principale.
+ * Remplace l'ancienne logique directe.
+ */
+window.exportDisplayPDF = function() {
+    const modal = document.getElementById('modal-export-pdf');
+    modal.showModal(); // API native HTML5 pour ouvrir la modale
+}
+
+/**
+ * Fonction cœur qui génère le PDF (Logique jsPDF métier)
+ * @param {boolean} showAnonymity - true si on inclut la colonne Anonymat
+ */
+function generateDisplayPDF(showAnonymity) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     let pageCount = 0;
@@ -4624,34 +4793,44 @@ function exportDisplayPDF() {
 
         if (pageCount > 0) doc.addPage();
         
-        // Appel du header standard
-        drawHeader(doc, `Liste d'affichage - Salle ${r.nom}`, r.isTT ? "Tiers-Temps" : "Standard");
+        drawHeader(doc, `Liste d'affichage - Salle : ${r.nom}`, r.isTT ? "Tiers-Temps" : "Standard");
         
-        // --- AJOUT : AFFICHAGE DE L'EFFECTIF ---
+        // --- AFFICHAGE DE L'EFFECTIF ---
         doc.setFontSize(12);
         doc.setFont("helvetica", "bold");
         doc.text(`Effectif : ${studentsInRoom.length} élèves`, 195, 52, { align: 'right' });
         doc.setFont("helvetica", "normal");
-        // ---------------------------------------
 
-        const body = studentsInRoom.map(s => [
-            s.nom.toUpperCase(),
-            s.prenom,
-            s.classe,
-            s.anonymat || "",
-            s.tt ? "OUI" : ""
-        ]);
+        // Construction dynamique des colonnes
+        const tableHeaders = ['Nom', 'Prénom', 'Classe'];
+        if (showAnonymity) tableHeaders.push('Anonymat');
+        tableHeaders.push('TT');
+
+        // Construction dynamique des lignes
+        const tableBody = studentsInRoom.map(s => {
+            const rowData = [s.nom.toUpperCase(), s.prenom, s.classe];
+            if (showAnonymity) rowData.push(s.anonymat || "");
+            rowData.push(s.tt ? "OUI" : "");
+            return rowData;
+        });
 
         doc.autoTable({
-            head: [['Nom', 'Prénom', 'Classe', 'Anonymat', 'TT']],
-            body: body,
+            head: [tableHeaders],
+            body: tableBody,
             startY: 60,
             theme: 'grid',
             styles: { fontSize: 10, cellPadding: 3 },
             headStyles: { fillColor: [44, 62, 80] }
         });
+        
         pageCount++;
     });
+
+    if (pageCount === 0) {
+        alert("Aucun élève n'est réparti dans les salles.");
+        return;
+    }
+    
     doc.save("listes_affichage.pdf");
 }
 
@@ -4677,7 +4856,7 @@ function exportSignPDF() {
             const startTime = room.isTT ? (exam.timeTT || exam.time) : exam.time;
             const endTime = addMinutes(startTime, dur);
 
-            drawHeader(doc, `Émargement - ${exam.name} - Salle ${room.nom}`, `Date: ${exam.date}`);
+            drawHeader(doc, `Émargement - ${exam.name} - Salle : ${room.nom}`, `Date: ${exam.date}`);
             
             // --- AJOUT : AFFICHAGE DE L'EFFECTIF ET HORAIRE ---
             doc.setFontSize(11);
