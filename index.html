@@ -1801,6 +1801,9 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
                         <span style="font-size: 2.5rem; line-height: 1;">📊</span>
                         <span style="font-size: 0.9rem;">Fichier Excel</span>
                     </button>
+					<button class="btn btn-danger" onclick="clearAllGrades()" style="width: 100%; margin-top: 10px; font-weight: bold;">
+        🗑️ Vider toutes les notes
+    </button>
                 </div>
 
             </div> </div> <hr style="margin-top: 20px; border: 0; border-top: 1px solid #eee;">
@@ -6288,6 +6291,7 @@ function checkSaveStatus() {
             } else {
                 document.getElementById('customExamContainer').style.display = 'none';
             }
+			
         }
 
             // --- AJOUT : RESTAURATION DES CONSIGNES PERSONNALISÉES ---
@@ -6306,6 +6310,11 @@ function checkSaveStatus() {
             if(DB.config.txtConvocProfsInfo) 
                 document.getElementById('txtConvocProfsInfo').value = DB.config.txtConvocProfsInfo;
             // ---------------------------------------------------------
+
+// À la fin de ta fonction d'importation de sauvegarde :
+if (typeof renderCorrectionsConfig === 'function' && document.getElementById('corrSubjectSelect')) {
+    renderCorrectionsConfig();
+}
 
             // Mise à jour des cases à cocher Sciences
             document.getElementById('chkSVT').checked = DB.config.scienceSubjects.includes('SVT');
@@ -7069,12 +7078,19 @@ function autoSave() {
                                 if(typeof setDirectorCiv === 'function') setDirectorCiv(DB.config.director.civ || "M. le Principal");
                             }
 
+// À la fin de ta fonction d'importation de sauvegarde :
+if (typeof renderCorrectionsConfig === 'function' && document.getElementById('corrSubjectSelect')) {
+    renderCorrectionsConfig();
+}
+
                             // --- CORRECTIF 2 : SCIENCES ---
                             if(DB.config.scienceSubjects) {
                                 document.getElementById('chkSVT').checked = DB.config.scienceSubjects.includes('SVT');
                                 document.getElementById('chkPC').checked = DB.config.scienceSubjects.includes('PC');
                                 document.getElementById('chkTech').checked = DB.config.scienceSubjects.includes('TECH');
                             }
+							
+
                             
                             alert("✅ Session restaurée avec succès !");
                             btn.remove();
@@ -7729,7 +7745,6 @@ window.exportConvocationTeachers = function() {
     const customText = document.getElementById('txtConvocProfsInfo').value;
     const schoolName = DB.config.schoolName || "Établissement";
     const year = DB.config.year || new Date().getFullYear();
-    
     let teacherCount = 0;
 
     // On trie les profs par nom pour faciliter la distribution physique
@@ -7743,43 +7758,45 @@ window.exportConvocationTeachers = function() {
         Object.keys(DB.planning).forEach(key => {
             if (DB.planning[key] === fullName) {
                 const [examIdx, roomName, type, slotIdx] = key.split('_');
-                const exam = DB.exams[parseInt(examIdx)];
                 
-                // Récupération de l'heure de début et de fin
+                // 🛠️ FIX : Vérification de l'intégrité référentielle
+                // On s'assure que la salle existe TOUJOURS dans la configuration active
+                const isRoomActive = DB.rooms.some(r => r.nom === roomName);
+                if (!isRoomActive) return; // On ignore les données orphelines (ex: ancienne salle D5)
+
+                const exam = DB.exams[parseInt(examIdx)];
                 let startTime = "";
                 let endTime = "";
 
-                // LOGIQUE CORRIGÉE : Si l'épreuve a des créneaux (découpée)
+                // Récupération de l'heure de début et de fin
                 if (exam.slots && exam.slots[type] && exam.slots[type][slotIdx]) {
                     startTime = exam.slots[type][slotIdx].start;
                     endTime = exam.slots[type][slotIdx].end;
                 } else {
-                    // LOGIQUE CORRIGÉE : Épreuve non découpée (Bloc unique)
                     startTime = (type === 'tt' && exam.timeTT) ? exam.timeTT : exam.time;
                     const duration = (type === 'tt') ? exam.durTT : exam.durStd;
-                    // On appelle la fonction utilitaire existante pour calculer la fin
                     endTime = addMinutes(startTime, parseInt(duration));
                 }
 
-                teacherSurveillances.push({
-                    date: exam.date,
-                    name: exam.name,
-                    room: roomName,
-                    start: startTime,
-                    end: endTime
+                teacherSurveillances.push({ 
+                    date: exam.date, 
+                    name: exam.name, 
+                    room: roomName, 
+                    start: startTime, 
+                    end: endTime 
                 });
             }
         });
 
-        // 2. Si le prof n'a aucune surveillance, on ne génère pas de page pour lui
+        // 2. Si le prof n'a aucune surveillance valide, on ne génère pas de page pour lui
         if (teacherSurveillances.length === 0) return;
-
+        
         if (teacherCount > 0) doc.addPage();
         teacherCount++;
 
         // --- Mise en page de la convocation ---
         if (typeof addSmartLogo === 'function' && DB.config.logo) addSmartLogo(doc, 15, 10, 40);
-        
+
         doc.setFontSize(10).setTextColor(100);
         doc.text(getExamTitle(), 195, 15, {align:'right'});
         doc.text(`Session ${year}`, 195, 20, {align:'right'});
@@ -7811,9 +7828,9 @@ window.exportConvocationTeachers = function() {
             startY: 70,
             theme: 'grid',
             headStyles: { fillColor: [44, 62, 80] },
-            columnStyles: { 
-                1: { halign: 'center' }, 
-                2: { halign: 'center', fontStyle: 'bold' } 
+            columnStyles: {
+                1: { halign: 'center' },
+                2: { halign: 'center', fontStyle: 'bold' }
             }
         });
 
@@ -10579,24 +10596,39 @@ window.confirmAddCorrector = function() {
 /**
  * RENDU DE L'INTERFACE (Version Robuste et Anti-Bug "Inconnu")
  */
+/**
+ * RENDU DE L'INTERFACE (Version Robuste et Anti-Bug)
+ */
 window.renderCorrectionsConfig = function() {
     initCorrectionsModule();
-    const subj = document.getElementById('corrSubjectSelect').value;
+    
+    // --- DÉBUT CORRIGÉ : Sécurité pour éviter les erreurs lors de l'import ---
+    const subjectSelect = document.getElementById('corrSubjectSelect');
+    if (!subjectSelect) return; // Sécurité si on n'est pas sur le bon onglet
+    const subj = subjectSelect.value;
+    
     if(!DB.corrections.settings[subj]) DB.corrections.settings[subj] = { mode: 'auto', teachers: [], manualMap: {} };
     
     const config = DB.corrections.settings[subj];
-    document.getElementById('corrModeSelect').value = config.mode;
+    // SÉCURITÉ : Forcer 'auto' si le mode importé est corrompu ou vide
+    config.mode = config.mode || 'auto'; 
     
-const isAutoOrQuota = (config.mode === 'auto' || config.mode === 'manual_quota');
+    const modeSelect = document.getElementById('corrModeSelect');
+    if (modeSelect) modeSelect.value = config.mode;
+    // --- FIN DE LA SÉCURITÉ ---
+
+    const isAutoOrQuota = (config.mode === 'auto' || config.mode === 'manual_quota');
     const isManualClass = config.mode === 'one_to_one';
     const isManualAssisted = config.mode === 'manual_assisted'; // <-- NOUVEAU
 
-    document.getElementById('corrManualClassArea').style.display = isManualClass ? 'block' : 'none';
+    const manualClassArea = document.getElementById('corrManualClassArea');
+    if (manualClassArea) manualClassArea.style.display = isManualClass ? 'block' : 'none';
     
     // <-- NOUVEAU : Affichage de la zone Drag & Drop
     const assistedArea = document.getElementById('corrAssistedArea');
     if (assistedArea) assistedArea.style.display = isManualAssisted ? 'block' : 'none';
 
+    // --- LE MILIEU (TON CODE INTACT) ---
     const thead = document.getElementById('corrThead');
     const tbody = document.getElementById('corrTbody');
     
@@ -10656,11 +10688,13 @@ const isAutoOrQuota = (config.mode === 'auto' || config.mode === 'manual_quota')
         }
     });
 
+    // --- FIN CORRIGÉE ---
     // Rendu spécifique au mode manuel par classe
-if (isManualClass) {
-        renderManualClassTable(subj, config, profsMap = {});
+    if (isManualClass) {
+        // CORRECTION ICI : J'ai enlevé "profsMap = {}" qui créait un bug mémoire
+        renderManualClassTable(subj, config);
     } else if (isManualAssisted) {
-        initManualAssistedMode(subj); // <-- NOUVEAU
+        if (typeof initManualAssistedMode === 'function') initManualAssistedMode(subj); 
     }
 
     renderLotsResult(subj);
@@ -12411,6 +12445,7 @@ function getGlobalComparisonHtml() {
                 if (config.mode === 'one_to_one' && config.manualMap) {
                     const profId = config.manualMap[cls]; // On récupère l'ID exact assigné à cette classe
                     
+								
                     if (profId) {
                         const teacher = DB.teachers ? DB.teachers.find(t => String(t.id) === String(profId)) : null;
                         if (teacher) {
@@ -12543,20 +12578,18 @@ window.exportTableToExcel = function(tableId, filename = 'Comparatif_DNB_Blanc.x
  * Avantages : Génération instantanée, téléchargement direct, texte vectoriel net.
  */
 window.exportTableToPDF = function() {
-    // 1. Initialisation de jsPDF (comme dans votre script de convocations)
-    // On utilise 'l' (landscape/paysage) car le tableau a 13 colonnes
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('l', 'mm', 'a4'); 
-    
+    const doc = new jsPDF('l', 'mm', 'a4');
     const year = DB.config.year || new Date().getFullYear();
     const schoolName = DB.config.schoolName || "Établissement";
 
-    // 2. En-tête du document PDF
+    // --- CORRECTION ICI : Utilisation des backticks (`) et appel de la fonction ---
     doc.setFontSize(16).setTextColor(44, 62, 80).setFont("helvetica", "bold");
-    doc.text("Comparaison Bilan : ${getExamTitle()} vs Moyennes Annuelles", 148, 15, { align: 'center' });
+    doc.text(`Comparaison Bilan : ${getExamTitle()} vs Moyennes Annuelles`, 148, 15, { align: 'center' });
     
     doc.setFontSize(11).setTextColor(100).setFont("helvetica", "normal");
     doc.text(`${schoolName} - Session ${year}`, 148, 22, { align: 'center' });
+    // ... suite du code (autoTable)
 
     // 3. Utilisation de autoTable pour aspirer le tableau HTML
     doc.autoTable({
@@ -13925,6 +13958,33 @@ function generateCouverturesEnveloppesPDF(commissions, rne) {
     if (count === 0) return alert("Aucune donnée trouvée !");
     doc.save(`Couvertures_Enveloppes_A4_${rne}_${examYear}.pdf`);
 }
+
+/**
+ * Efface l'intégralité des notes de tous les élèves après confirmation.
+ * @why Permet de réinitialiser le tableau des résultats sans supprimer les élèves eux-mêmes.
+ */
+window.clearAllGrades = function() {
+    // 1. Demande de confirmation sécurisée (Posture pédagogique & RGAA)
+    const confirmation = confirm("⚠️ ATTENTION : Vous allez effacer TOUTES les notes (Français, Maths, HG, Sciences) de TOUS les élèves.\n\nCette action est irréversible. Confirmer ?");
+    
+    if (confirmation) {
+        // 2. Réinitialisation des données dans l'objet global DB
+        DB.students.forEach(student => {
+            // On vide l'objet grades mais on conserve l'élève
+            student.grades = {};
+        });
+
+        // 3. Mise à jour de l'interface graphique
+        renderGrades();
+
+        // 4. Persistance des données
+        if (typeof autoSave === 'function') {
+            autoSave();
+        }
+        
+        alert("✅ Toutes les notes ont été supprimées.");
+    }
+};
 
 // ----------------------
 </script>
