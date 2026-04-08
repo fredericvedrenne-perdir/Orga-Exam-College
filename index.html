@@ -7497,70 +7497,7 @@ function updateMefCheckboxes() {
     container.innerHTML = html;
 }
 
-// --- 2. AFFICHAGE PRINCIPAL (Le coeur du filtre) ---
-window.renderAmenagements = function() {
-    // A. Initialisation (Si les cases n'existent pas encore)
-    const mefContainer = document.getElementById('mefCheckContainer');
-    if(mefContainer && (!mefContainer.innerHTML.includes('input') && DB.students.length > 0)) {
-        updateMefCheckboxes();
-    }
 
-    // B. Récupération des filtres
-    const searchVal = document.getElementById('amenSearchInput') ? document.getElementById('amenSearchInput').value.toLowerCase() : "";
-    
-    // Filtre MEF : On liste ce qui est coché
-    const checkboxes = document.querySelectorAll('.mef-checkbox');
-    const checkedMefs = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
-    // Si aucune case n'existe (pas de MEF), on considère qu'on affiche tout
-    const ignoreMefFilter = (checkboxes.length === 0);
-
-        // D. Rendu Tableau Élèves (Droite)
-    const tbody = document.getElementById('amenBody');
-    if(!tbody) return;
-    
-    tbody.innerHTML = "";
-    
-    // On filtre
-    const filtered = DB.students.filter(s => {
-        // 1. Recherche Texte
-        if(searchVal && !s.nom.toLowerCase().includes(searchVal) && !s.prenom.toLowerCase().includes(searchVal)) return false;
-        
-        // 2. Filtre MEF
-        if(!ignoreMefFilter) {
-            // Si l'élève a un MEF, est-il coché ?
-            // (Note: s.mef || "" gère le cas où le champ est vide)
-            if(s.mef && !checkedMefs.includes(s.mef)) return false; 
-            // Si l'élève n'a PAS de MEF, on décide de l'afficher seulement si "Tout" est coché ou selon votre préférence. 
-            // Ici : Si je décoche tout, je cache tout.
-            if(!s.mef && checkedMefs.length === 0) return false;
-        }
-        return true;
-    });
-
-    // On trie et on affiche
-    filtered.sort((a,b) => a.nom.localeCompare(b.nom)).forEach(s => {
-        // Badges
-        let badges = "";
-        (DB.config.labels || []).forEach(l => {
-            const isActive = (s.labels || []).includes(l.code);
-            const style = isActive 
-                ? `background:${l.color}; color:white; border:1px solid ${l.color};` 
-                : `background:white; color:#ccc; border:1px solid #ddd;`;
-            
-            badges += `<span onclick="toggleStudentLabel(${s.id}, '${l.code}')" 
-                       style="cursor:pointer; padding:2px 6px; border-radius:10px; font-size:0.7rem; margin-right:4px; user-select:none; ${style}">
-                       ${l.code}</span>`;
-        });
-
-        tbody.innerHTML += `
-        <tr>
-            <td style="font-weight:600;">${s.nom} <span style="font-weight:normal; font-size:0.9em">${s.prenom}</span></td>
-            <td style="text-align:center; font-size:0.85rem;">${s.classe}</td>
-            <td style="text-align:center; font-size:0.8rem; color:#2980b9;">${s.mef || '-'}</td>
-            <td>${badges}</td>
-        </tr>`;
-    });
-};
 // =========================================================
 // === MODULE EXPORT AMÉNAGEMENTS (AJOUT MANQUANT) ===
 // =========================================================
@@ -9775,127 +9712,104 @@ setTimeout(function() {
     }
 }, 1500); // On attend 1.5s pour être sûr que l'interface est chargée
 
-// ============================================================
-// === CORRECTIF : RÉPARATION DU CLIC SUR LES LABELS ===
-// (Collez ceci tout en bas du fichier)
-// ============================================================
-
-// On remplace la fonction d'affichage par la version CORRIGÉE (avec le "this")
+/**
+ * RENDU DU TABLEAU DES AMÉNAGEMENTS (Correctif Design Flexbox & RGAA)
+ * @why Utilisation de flex-wrap pour éviter de tronquer les badges, et couleurs assombries pour l'accessibilité.
+ */
 window.renderAmenagements = function() {
-    // 1. Initialisation des filtres MEF si nécessaire
     const mefContainer = document.getElementById('mefCheckContainer');
-    if(mefContainer && (!mefContainer.innerHTML.includes('input') && typeof DB !== 'undefined' && DB.students.length > 0)) {
-        if(typeof updateMefCheckboxes === 'function') updateMefCheckboxes();
+    if(mefContainer && (!mefContainer.innerHTML.includes('input') && DB.students.length > 0)) {
+        updateMefCheckboxes();
     }
 
-    const tbody = document.getElementById('amenBody');
-    if(!tbody) return;
-    
-    // 2. Récupération des filtres
-    const searchVal = document.getElementById('amenSearchInput') ? document.getElementById('amenSearchInput').value.toLowerCase() : "";
+    const searchVal = document.getElementById('amenSearchInput')?.value.toLowerCase() || "";
     const checkboxes = document.querySelectorAll('.mef-checkbox');
     const checkedMefs = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
     const ignoreMefFilter = (checkboxes.length === 0);
-    
-    // 3. Construction du HTML
-    const labelsDef = (DB.config && DB.config.labels) ? DB.config.labels : [];
 
-    // Filtrage et Tri
-    const rowsHTML = DB.students.filter(s => {
+    const tbody = document.getElementById('amenBody');
+    if(!tbody) return;
+    tbody.innerHTML = "";
+
+    const filtered = DB.students.filter(s => {
         if(searchVal && !s.nom.toLowerCase().includes(searchVal) && !s.prenom.toLowerCase().includes(searchVal)) return false;
         if(!ignoreMefFilter) {
             if(s.mef && !checkedMefs.includes(s.mef)) return false;
             if(!s.mef && checkedMefs.length === 0) return false;
         }
         return true;
-    }).sort((a,b) => a.nom.localeCompare(b.nom)).map(s => {
+    });
+
+    filtered.sort((a,b) => a.nom.localeCompare(b.nom)).forEach(s => {
+        // AJOUT : Conteneur Flex pour forcer le passage à la ligne des badges
+        let badges = `<div style="display: flex; flex-wrap: wrap; gap: 5px;">`;
         
-        let badges = labelsDef.map(l => {
+        (DB.config.labels || []).forEach(l => {
             const isActive = (s.labels || []).includes(l.code);
-            
-            // Style Initial (Actif ou Inactif)
-            // Note : Pour l'inactif, on met fond blanc et texte #333 (gris foncé/noir) pour que ce ne soit pas "grisé"
+            // CORRECTIF RGAA : #444 pour le texte et #999 pour la bordure (Gris plus foncés)
             const style = isActive 
                 ? `background:${l.color}; color:white; border:1px solid ${l.color}; font-weight:bold;` 
-                : `background:white; color:#333; border:1px solid #ccc; font-weight:normal;`; // <--- ICI
+                : `background:white; color:#444444; border:1px solid #999999; font-weight:normal;`;
             
-            // On ajoute bien ", this" dans le onclick
-            return `<span onclick="toggleStudentLabel(${s.id}, '${l.code}', this)" 
-                          style="cursor:pointer; padding:4px 8px; border-radius:12px; font-size:0.75rem; margin-right:5px; transition:all 0.1s; display:inline-block; margin-bottom:3px; user-select:none; ${style}">
-                          ${l.code}</span>`;
-        }).join('');
+            badges += `<span onclick="toggleStudentLabel('${s.id}', '${l.code}', this)" 
+                             style="cursor:pointer; padding:3px 8px; border-radius:12px; font-size:0.75rem; user-select:none; transition:0.2s; white-space:nowrap; ${style}">
+                             ${l.code}</span>`;
+        });
+        badges += `</div>`; // Fermeture du conteneur Flex
 
-        return `
-        <tr>
-            <td style="font-weight:600;">${s.nom} <span style="font-weight:normal; font-size:0.9em">${s.prenom}</span></td>
-            <td style="text-align:center; font-size:0.85rem;">${s.classe}</td>
-            <td style="text-align:center; font-size:0.8rem; color:#2980b9;">${s.mef || '-'}</td>
-            <td>${badges}</td>
-        </tr>`;
-    }).join('');
-
-    tbody.innerHTML = rowsHTML;
+        tbody.innerHTML += `
+            <tr>
+                <td style="font-weight:600;">${s.nom} <span style="font-weight:normal; font-size:0.9em">${s.prenom}</span></td>
+                <td style="text-align:center; font-size:0.85rem;">${s.classe}</td>
+                <td style="text-align:center; font-size:0.8rem; color:#2980b9;">${s.mef || '-'}</td>
+                <td>${badges}</td>
+            </tr>`;
+    });
 };
 
-// On force le rafraîchissement immédiat pour appliquer le fix
-if(document.getElementById('data-amenagements') && document.getElementById('data-amenagements').classList.contains('active')) {
+// --- Initialisation conditionnelle de la vue ---
+// On force le rafraîchissement immédiat de l'interface si l'utilisateur est déjà sur cet onglet.
+// @why Évite à l'utilisateur de devoir recharger la vue manuellement.
+const amenagementsView = document.getElementById('data-amenagements');
+
+if (amenagementsView && amenagementsView.classList.contains('active')) {
     renderAmenagements();
 }
 
-// ============================================================
-// === CORRECTIF VISUEL INSTANTANÉ (CLIC & COULEURS) ===
-// (Collez ceci tout en bas du fichier)
-// ============================================================
-
+/**
+ * TOGGLE LABEL (Mise à jour visuelle synchronisée avec le RGAA)
+ */
 window.toggleStudentLabel = function(studentId, code, btnElement) {
-    const s = DB.students.find(st => st.id === studentId);
+    const s = DB.students.find(st => String(st.id) === String(studentId));
     if(!s) return;
-
+    
     if(!s.labels) s.labels = [];
 
-    // 1. Mise à jour des DONNÉES
     const labelConfig = DB.config.labels.find(l => l.code === code);
-    const color = labelConfig ? labelConfig.color : '#333';
-    let isNowActive = false;
+    let isActive = false;
 
     if(s.labels.includes(code)) {
-        // RETRAIT
         s.labels = s.labels.filter(l => l !== code);
         if(code === 'TTEMPS') s.tt = false;
-        isNowActive = false;
+        isActive = false;
     } else {
-        // AJOUT
         s.labels.push(code);
         if(code === 'TTEMPS') s.tt = true;
-        isNowActive = true;
+        isActive = true;
     }
 
-    // 2. Mise à jour VISUELLE INSTANTANÉE (Correction du style)
-    if(btnElement) {
-        // On enlève toute gestion d'opacité qui donnait l'effet "fantôme"
-        btnElement.style.opacity = "1"; 
-
-        if (isNowActive) {
-            // Style ACTIF : Couleur du label, texte blanc, gras
-            btnElement.style.background = color;
-            btnElement.style.color = "white";
-            btnElement.style.border = "1px solid " + color;
-            btnElement.style.fontWeight = "bold";
-        } else {
-            // Style INACTIF : Fond blanc, texte sombre (plus lisible), bordure grise
-            btnElement.style.background = "white";
-            btnElement.style.color = "#333"; // Gris foncé presque noir
-            btnElement.style.border = "1px solid #ccc";
-            btnElement.style.fontWeight = "normal";
-        }
-
-        // Petit effet de clic
+    if(btnElement && labelConfig) {
+        btnElement.style.background = isActive ? labelConfig.color : "white";
+        // CORRECTIF RGAA : Application de la couleur foncée au clic aussi
+        btnElement.style.color = isActive ? "white" : "#444444";
+        btnElement.style.border = isActive ? `1px solid ${labelConfig.color}` : "1px solid #999999";
+        btnElement.style.fontWeight = isActive ? "bold" : "normal";
+        
         btnElement.style.transform = "scale(0.95)";
         setTimeout(() => btnElement.style.transform = "scale(1)", 100);
     }
     
-    // Sauvegarde (Optionnel)
-    // if(typeof saveData === 'function') saveData();
+    if(typeof saveDB === 'function') saveDB();
 };
 
 // 3. On lance la vérification au démarrage
