@@ -15921,6 +15921,42 @@ window.auditLanguageCapacity = function() {
     return true;
 };
 
+// ============================================================================
+// 🛠️ MOTEUR DE RÉPARTITION : GESTION DES PAUSES & ALGORITHME
+// ============================================================================
+
+/**
+ * @description Calcule l'heure de début valide pour un oral en évitant les chevauchements avec les pauses.
+ * @why Empêcher qu'un oral (durée + harmonisation) ne déborde ou ne soit coupé par un repas/récréation.
+ * @param {string} currentTime - Heure de début théorique (format "HH:MM").
+ * @param {number} requiredDuration - Temps total requis (Oral + Harmonisation, en minutes).
+ * @param {Array} breaks - Tableau des pauses [{start: "10:00", end: "10:15"}, ...].
+ * @returns {string} L'heure de début validée et sécurisée.
+ */
+function getNextValidStartTime(currentTime, requiredDuration, breaks) {
+    let currentMin = timeToMins(currentTime);
+    let isValid = false;
+
+    while (!isValid) {
+        isValid = true;
+        let endMin = currentMin + requiredDuration;
+
+        for (let b of breaks) {
+            const bStart = timeToMins(b.start);
+            const bEnd = timeToMins(b.end);
+
+            // Logique de collision : Si [DebutOral, FinOral] croise [DebutPause, FinPause]
+            if (Math.max(currentMin, bStart) < Math.min(endMin, bEnd)) {
+                // S'il y a collision, on repousse l'heure de début à la fin de la pause
+                currentMin = bEnd;
+                isValid = false; 
+                break; // On recommence la vérification avec la nouvelle heure
+            }
+        }
+    }
+    return minsToTime(currentMin);
+}
+
 /**
  * @why Cœur algorithmique de l'Oral. Distribue les candidats dans DB.oralConfig.distribution
  * en respectant les contraintes de temps, de langues, de thématiques, et gère strictement les PAUSES.
@@ -15929,7 +15965,7 @@ function runOralAlgorithm() {
     // --- 0. BARRIÈRE DE SÉCURITÉ ---
     if (typeof auditLanguageCapacity === 'function' && !auditLanguageCapacity()) return; 
 
-    // 1. Récupération des paramètres
+    // 1. Récupération des paramètres (Temps et Stratégies)
     const durIndiv = parseInt(document.getElementById('oral-dur-indiv')?.value) || 15;
     const durGroup = parseInt(document.getElementById('oral-dur-group')?.value) || 25;
     const durHarm = parseInt(document.getElementById('oral-dur-harm')?.value) || 5;
@@ -15938,17 +15974,10 @@ function runOralAlgorithm() {
     
     const globalStartTime = DB.oralConfig.general.start || "08:00";
 
-    // --- NOUVEAU : Récupération dynamique des Pauses ---
-    // (Ajustez les ID selon les champs de votre formulaire de configuration HTML)
-    const breaks = [];
-    const recreStart = document.getElementById('oral-recre-start')?.value;
-    const recreEnd = document.getElementById('oral-recre-end')?.value;
-    if (recreStart && recreEnd) breaks.push({ start: recreStart, end: recreEnd });
-
-    const repasStart = document.getElementById('oral-repas-start')?.value;
-    const repasEnd = document.getElementById('oral-repas-end')?.value;
-    if (repasStart && repasEnd) breaks.push({ start: repasStart, end: repasEnd });
-    // ----------------------------------------------------
+    // --- CORRECTION MAJEURE : RÉCUPÉRATION DYNAMIQUE DES PAUSES ---
+    // On ne lit plus le HTML, on lit la base de données où les pauses ont été ajoutées
+    const breaks = DB.oralConfig.pauses || [];
+    // --------------------------------------------------------------
 
     DB.oralConfig.distribution = {};
     const jurysInfos = {}; 
@@ -15995,12 +16024,14 @@ function runOralAlgorithm() {
         passages.push(currentPassage);
     });
 
+    // Tri des passages
     if (stratGroup === 'start') {
         passages.sort((a, b) => (a.isGroup === b.isGroup) ? 0 : a.isGroup ? -1 : 1);
     } else if (stratGroup === 'end') {
         passages.sort((a, b) => (a.isGroup === b.isGroup) ? 0 : a.isGroup ? 1 : -1);
     } 
 
+    // Attribution
     passages.forEach(passage => {
         let bestJury = null;
         let bestScore = -Infinity;
@@ -16031,11 +16062,11 @@ function runOralAlgorithm() {
         }
 
         const info = jurysInfos[bestJury];
-        const tempsRequis = passage.duration + durHarm; // Le temps dont on a besoin sans être coupé
+        const tempsRequis = passage.duration + durHarm; 
         
-        // --- NOUVEAU : Application stricte du contrôleur de pause ---
+        // --- UTILISATION DU CONTRÔLEUR DE PAUSE ---
         const validStartTime = getNextValidStartTime(info.currentTime, tempsRequis, breaks);
-        // ------------------------------------------------------------
+        // ------------------------------------------
 
         const slotEndTime = addMinutesToTime(validStartTime, passage.duration);
         
@@ -16094,40 +16125,7 @@ function minsToTime(mins) {
     return `${h}:${m}`;
 }
 
-/**
- * @why Vérifie si un créneau chevauche une pause. Si oui, repousse l'heure à la fin de la pause.
- * Modularité : La fonction attend les pauses en argument, la rendant réutilisable n'importe où.
- * @param {string} startTimeStr - Heure de début prévue (ex: "10:00")
- * @param {number} durationMins - Durée du passage en minutes
- * @param {Array} pauses - Tableau optionnel des pauses [{start: "10:20", end: "10:35"}]
- * @returns {string} L'heure de début valide (ex: "10:35")
- */
-function getNextValidStartTime(startTimeStr, durationMins, pauses = []) {
-    let startMins = timeToMins(startTimeStr);
-    let endMins = startMins + durationMins;
-    
-    // On trie les pauses par ordre chronologique pour que la boucle while soit efficace
-    const sortedPauses = [...pauses].sort((a, b) => timeToMins(a.start) - timeToMins(b.start));
 
-    let hasConflict = true;
-    while (hasConflict) {
-        hasConflict = false;
-        for (let p of sortedPauses) {
-            let pStart = timeToMins(p.start);
-            let pEnd = timeToMins(p.end);
-
-            // Chevauchement : Le créneau commence AVANT la fin de la pause ET finit APRÈS le début de la pause
-            if (startMins < pEnd && endMins > pStart) {
-                // On repousse le début du créneau exactement à la fin de la pause
-                startMins = pEnd;
-                endMins = startMins + durationMins;
-                hasConflict = true; 
-                break; // On casse la boucle pour revérifier depuis le début
-            }
-        }
-    }
-    return minsToTime(startMins);
-}
 
 /**
  * @why Recalcule les horaires (début/fin) de tous les créneaux d'un jury en esquivant les pauses.
