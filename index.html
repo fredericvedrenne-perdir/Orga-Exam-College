@@ -3009,44 +3009,6 @@ let firstUnsavedTime = null; // Date de la 1ère modif non sauvegardée
 const SAVE_ALERT_DELAY = 5 * 60 * 1000; // 10 minutes en millisecondes
 // const SAVE_ALERT_DELAY = 10 * 1000; // Décommentez cette ligne pour tester (10 secondes)
 
-// Fonction d'auto-réparation à ajouter dans tes scripts globaux
-function sanitizeBackupIDs() {
-    if (!DB.students || DB.students.length === 0) return;
-
-    const seenIds = new Set();
-    const idChanges = {}; // Dictionnaire de traçabilité des mutations
-
-    // 1. Détection et réparation des doublons
-    DB.students.forEach(student => {
-        // Si l'ID n'existe pas ou s'il a déjà été attribué à un précédent élève
-        if (!student.id || seenIds.has(student.id)) {
-            const oldId = student.id;
-            const newId = crypto.randomUUID(); // Génération standardisée
-            student.id = newId;
-            
-            // On mémorise la mutation en utilisant une empreinte stricte (Nom+Prénom)
-            idChanges[`${oldId}_${student.nom}_${student.prenom}`] = newId;
-        }
-        seenIds.add(student.id);
-    });
-
-    // 2. Propagation : Mise à jour des clés étrangères dans le module Corrections
-    if (DB.corrections && DB.corrections.lots) {
-        Object.keys(DB.corrections.lots).forEach(subject => {
-            DB.corrections.lots[subject].forEach(lot => {
-                if (lot.copies) {
-                    lot.copies.forEach(copy => {
-                        const changeKey = `${copy.id}_${copy.nom}_${copy.prenom}`;
-                        // Si cet élève a subi une mutation d'ID, on met à jour sa copie
-                        if (idChanges[changeKey]) {
-                            copy.id = idChanges[changeKey]; 
-                        }
-                    });
-                }
-            });
-        });
-    }
-}
 
 function setDirectorCiv(val) {
     DB.config.director.civ = val;
@@ -3680,92 +3642,8 @@ function processMapping() {
     }
 }
 
-function executeStudentImport(data, mapping, isStrictReplace) {
-    let count = 0;
-    
-    if (isStrictReplace && confirm("Attention : Le mode Remplacement va effacer tous les élèves existants. Continuer ?")) {
-        DB.students = [];
-    }
 
-    data.forEach(row => {
-        const nom = mapping.nom ? row[mapping.nom] : null;
-        
-        if (nom) {
-            // CORRECTION CHIRURGICALE : Remplacement par l'API Web Crypto
-            const newS = {
-                id: crypto.randomUUID(), // <-- Nouvelle génération d'ID standard et sécurisée
-                nom: String(nom).toUpperCase().trim(),
-                prenom: mapping.prenom && row[mapping.prenom] ? String(row[mapping.prenom]).trim() : "",
-                classe: mapping.classe && row[mapping.classe] ? String(row[mapping.classe]).trim() : "Non Classé",
-                sexe: "M", 
-                mef: mapping.mef && row[mapping.mef] ? String(row[mapping.mef]).trim() : "",
-                anonymat: mapping.anonymat && row[mapping.anonymat] ? String(row[mapping.anonymat]).trim() : "",
-                tt: false,
-                grades: {}
-            };
 
-            // Gestion simple du sexe
-            if (mapping.sexe && row[mapping.sexe]) {
-                const val = String(row[mapping.sexe]).toLowerCase();
-                if (val.includes('f') || val === '2' || val === 'mlle' || val === 'mme') newS.sexe = "F";
-            }
-
-            // Gestion doublons (si on n'a pas tout effacé)
-            const existingIdx = DB.students.findIndex(s => s.nom === newS.nom && s.prenom === newS.prenom);
-            
-            if (existingIdx >= 0) {
-                // Si existe déjà : on met à jour les infos (classe, mef, etc)
-                // On garde l'ID et les notes existantes !
-                DB.students[existingIdx].classe = newS.classe;
-                DB.students[existingIdx].mef = newS.mef;
-                if(newS.anonymat) DB.students[existingIdx].anonymat = newS.anonymat;
-            } else {
-                // Nouveau
-                DB.students.push(newS);
-                count++;
-            }
-        }
-    });
-
-    renderStudents();
-    alert(`Terminé ! ${count} nouveaux élèves ajoutés (et les existants mis à jour).`);
-}
-
-// --- MOTEUR IMPORT PROFS ---
-function executeTeacherImport(data, mapping, isStrictReplace) {
-    let count = 0;
-    if (isStrictReplace) DB.teachers = []; // Reset si demandé
-
-    data.forEach(row => {
-        const nom = mapping.nom ? row[mapping.nom] : null;
-        if(nom) {
-            const newT = {
-                id: Date.now() + Math.random(),
-                nom: String(nom).toUpperCase().trim(),
-                prenom: mapping.prenom && row[mapping.prenom] ? String(row[mapping.prenom]).trim() : "",
-                civ: "M.",
-                matiere: mapping.matiere && row[mapping.matiere] ? String(row[mapping.matiere]).trim() : "Divers",
-                noHSE: false
-            };
-
-            // Civilité
-            if(mapping.civ && row[mapping.civ]) {
-                const c = String(row[mapping.civ]).toLowerCase();
-                if(c.includes('mme') || c.includes('f')) newT.civ = "Mme";
-            }
-
-            // Doublons
-            const existing = DB.teachers.find(t => t.nom === newT.nom);
-            if(!existing) {
-                DB.teachers.push(newT);
-                count++;
-            }
-        }
-    });
-
-    renderTeachers();
-    alert(`Terminé ! ${count} professeurs ajoutés.`);
-}
 
 // ============================================================================
 // IMPORTATION DES NOTES DNB BLANC (MOTEUR PRINCIPAL)
@@ -4974,24 +4852,8 @@ window.deleteTeacher = function(index) {
 }
     function openStudentModal(){document.getElementById('modStNom').value=""; document.getElementById('studentModal').style.display='flex';}
     function closeStudentModal(){document.getElementById('studentModal').style.display='none';}
-function saveNewStudent(){ 
-    const n=document.getElementById('modStNom').value, p=document.getElementById('modStPrenom').value; 
-    if(n&&p){ 
-        // CORRECTION CHIRURGICALE : id: crypto.randomUUID()
-        DB.students.push({
-            id: crypto.randomUUID(), 
-            nom: String(n).toUpperCase().trim(), // Ajout d'une normalisation métier
-            prenom: String(p).trim(),
-            classe: document.getElementById('modStClasse').value,
-            sexe: document.getElementById('modStSexe').value,
-            tt: document.getElementById('modStTT').checked
-        }); 
-        renderStudents(); 
-        closeStudentModal(); 
-    } 
-}    function openTeacherModal(){ document.getElementById('modTeaNom').value=""; document.getElementById('teacherModal').style.display='flex';}
+    function openTeacherModal(){ document.getElementById('modTeaNom').value=""; document.getElementById('teacherModal').style.display='flex';}
     function closeTeacherModal(){document.getElementById('teacherModal').style.display='none';}
-    function saveNewTeacher(){ const n=document.getElementById('modTeaNom').value; if(n){ DB.teachers.push({civ:document.getElementById('modTeaCiv').value, nom:n, prenom:document.getElementById('modTeaPrenom').value, matiere:document.getElementById('modTeaMatiere').value}); renderTeachers(); closeTeacherModal(); } }
     function toggleDistribLock() { if(!DB.uiState.locked.distrib) DB.uiState.locked.distrib = false; DB.uiState.locked.distrib = !DB.uiState.locked.distrib; updateDistribLock(); }
     function updateDistribLock() { const locked = DB.uiState.locked.distrib; const btn = document.getElementById('lock-distrib'), cont = document.getElementById('visualDistrib'), btnWiz = document.getElementById('btnLaunchDistrib'), btnReset = document.getElementById('btnResetDistrib'); if(locked) { btn.innerHTML = "🔒 Déverrouiller"; btn.classList.add('locked'); cont.classList.add('is-locked-disabled'); btnWiz.disabled = true; btnReset.disabled = true; } else { btn.innerHTML = "🔓 Verrouiller"; btn.classList.remove('locked'); cont.classList.remove('is-locked-disabled'); btnWiz.disabled = false; btnReset.disabled = false; } }
     window.renderVisualDistribution = function() {
@@ -19344,7 +19206,197 @@ window.exportOralParcoursJury = function() {
     doc.save(`Specificites_Par_Jury_Oral_${safeName}_${sessionYear}.pdf`);
 };
 
+// ============================================================================
+// 🛠️ 1. UTILITAIRE CORE : GÉNÉRATEUR D'ID UNIVERSEL (À ajouter au début du script)
+// ============================================================================
 
+/**
+ * @description Génère un UUID v4 de manière universelle (Standard + Polyfill hors ligne).
+ * @why En EPLE, le fichier HTML est souvent ouvert en local (protocole file://). 
+ * L'API native crypto.randomUUID() crashe hors HTTPS. Ce polyfill garantit 
+ * un fonctionnement ininterrompu, sans serveur web.
+ * @returns {string} Identifiant unique sécurisé.
+ */
+function generateSecureID() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Polyfill Vanilla JS (génération mathématique formatée UUID v4)
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0,
+            v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+// ============================================================================
+// 🛠️ 2. FONCTION DE RÉPARATION DE BACKUP (À remplacer, vers la ligne 140)
+// ============================================================================
+
+function sanitizeBackupIDs() {
+    if (!DB.students || DB.students.length === 0) return;
+
+    const seenIds = new Set();
+    const idChanges = {};
+
+    DB.students.forEach(student => {
+        if (!student.id || seenIds.has(student.id)) {
+            const oldId = student.id;
+            const newId = generateSecureID(); // Appel sécurisé hors ligne
+            student.id = newId;
+            idChanges[`${oldId}_${student.nom}_${student.prenom}`] = newId;
+        }
+        seenIds.add(student.id);
+    });
+
+    if (DB.corrections && DB.corrections.lots) {
+        Object.keys(DB.corrections.lots).forEach(subject => {
+            DB.corrections.lots[subject].forEach(lot => {
+                if (lot.copies) {
+                    lot.copies.forEach(copy => {
+                        const changeKey = `${copy.id}_${copy.nom}_${copy.prenom}`;
+                        if (idChanges[changeKey]) copy.id = idChanges[changeKey]; 
+                    });
+                }
+            });
+        });
+    }
+}
+
+// ============================================================================
+// 🛠️ 3. MODULE ÉLÈVES - Création et Import (À remplacer, vers la ligne 475 et 1500)
+// ============================================================================
+
+/**
+ * @description Création manuelle d'un élève.
+ * @why Standardisation de l'ID à la création pour assurer l'intégrité du module Corrections.
+ */
+function saveNewStudent() { 
+    const n = document.getElementById('modStNom').value;
+    const p = document.getElementById('modStPrenom').value; 
+    
+    if(n && p){ 
+        DB.students.push({
+            id: generateSecureID(), // Appel de l'utilitaire universel
+            nom: String(n).toUpperCase().trim(),
+            prenom: String(p).trim(),
+            classe: document.getElementById('modStClasse').value,
+            sexe: document.getElementById('modStSexe').value,
+            tt: document.getElementById('modStTT').checked
+        }); 
+        renderStudents(); 
+        closeStudentModal(); 
+    } else {
+        alert("⚠️ Les champs Nom et Prénom sont obligatoires.");
+    }
+}
+
+/**
+ * @description Moteur d'importation des élèves via Excel.
+ */
+function executeStudentImport(data, mapping, isStrictReplace) {
+    let count = 0;
+    if (isStrictReplace && confirm("Attention : Le mode Remplacement va effacer tous les élèves existants. Continuer ?")) {
+        DB.students = [];
+    }
+
+    data.forEach(row => {
+        const nom = mapping.nom ? row[mapping.nom] : null;
+        if (nom) {
+            const newS = {
+                id: generateSecureID(), // Appel de l'utilitaire universel
+                nom: String(nom).toUpperCase().trim(),
+                prenom: mapping.prenom && row[mapping.prenom] ? String(row[mapping.prenom]).trim() : "",
+                classe: mapping.classe && row[mapping.classe] ? String(row[mapping.classe]).trim() : "Non Classé",
+                sexe: "M", 
+                mef: mapping.mef && row[mapping.mef] ? String(row[mapping.mef]).trim() : "",
+                anonymat: mapping.anonymat && row[mapping.anonymat] ? String(row[mapping.anonymat]).trim() : "",
+                tt: false,
+                grades: {}
+            };
+
+            if (mapping.sexe && row[mapping.sexe]) {
+                const val = String(row[mapping.sexe]).toLowerCase();
+                if (val.includes('f') || val === '2' || val === 'mlle' || val === 'mme') newS.sexe = "F";
+            }
+
+            const existingIdx = DB.students.findIndex(s => s.nom === newS.nom && s.prenom === newS.prenom);
+            if (existingIdx >= 0) {
+                DB.students[existingIdx].classe = newS.classe;
+                DB.students[existingIdx].mef = newS.mef;
+                if(newS.anonymat) DB.students[existingIdx].anonymat = newS.anonymat;
+            } else {
+                DB.students.push(newS);
+                count++;
+            }
+        }
+    });
+
+    renderStudents();
+    alert(`Terminé ! ${count} nouveaux élèves ajoutés (et les existants mis à jour).`);
+}
+
+// ============================================================================
+// 🛠️ 4. MODULE PROFS - Création et Import (À remplacer, vers la ligne 491 et 1545)
+// ============================================================================
+
+/**
+ * @description Création manuelle d'un enseignant.
+ * @why Code réécrit sur plusieurs lignes (Clean Code) pour y insérer la génération d'ID manquante.
+ */
+function saveNewTeacher() { 
+    const n = document.getElementById('modTeaNom').value; 
+    if(n) { 
+        DB.teachers.push({
+            id: generateSecureID(), // Harmonisation totale de la BDD
+            civ: document.getElementById('modTeaCiv').value, 
+            nom: String(n).toUpperCase().trim(), 
+            prenom: document.getElementById('modTeaPrenom').value.trim(), 
+            matiere: document.getElementById('modTeaMatiere').value.trim(),
+            noHSE: false // Assure l'intégrité de la propriété
+        }); 
+        renderTeachers(); 
+        closeTeacherModal(); 
+    } else {
+        alert("⚠️ Le nom du professeur est obligatoire.");
+    }
+}
+
+/**
+ * @description Moteur d'importation des professeurs via Excel.
+ */
+function executeTeacherImport(data, mapping, isStrictReplace) {
+    let count = 0;
+    if (isStrictReplace) DB.teachers = []; 
+
+    data.forEach(row => {
+        const nom = mapping.nom ? row[mapping.nom] : null;
+        if(nom) {
+            const newT = {
+                id: generateSecureID(), // Appel de l'utilitaire universel (Remplace Date.now + Math.random)
+                nom: String(nom).toUpperCase().trim(),
+                prenom: mapping.prenom && row[mapping.prenom] ? String(row[mapping.prenom]).trim() : "",
+                civ: "M.",
+                matiere: mapping.matiere && row[mapping.matiere] ? String(row[mapping.matiere]).trim() : "Divers",
+                noHSE: false
+            };
+
+            if(mapping.civ && row[mapping.civ]) {
+                const c = String(row[mapping.civ]).toLowerCase();
+                if(c.includes('mme') || c.includes('f')) newT.civ = "Mme";
+            }
+
+            const existing = DB.teachers.find(t => t.nom === newT.nom);
+            if(!existing) {
+                DB.teachers.push(newT);
+                count++;
+            }
+        }
+    });
+
+    renderTeachers();
+    alert(`Terminé ! ${count} professeurs ajoutés.`);
+}
 
 // ----------------------
 </script>
