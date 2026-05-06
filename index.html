@@ -1915,10 +1915,25 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
             <button class="lock-btn" id="lock-oral-distrib" onclick="toggleLock('oralDistrib')">🔓 Verrouiller</button>
         </div>
         
-        <!-- Barre d'outils -->
-        <div class="action-bar" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+<!-- Barre d'outils -->
+        <div class="action-bar" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap; align-items: center;">
             <button class="btn btn-success" onclick="openOralDistribWizard()">🚀 Assistant de Répartition</button>
             <button class="btn btn-danger" onclick="clearOralDistribution()">🗑️ Vider</button>
+            
+            <!-- NOUVEAU : Champ de recherche avec loupe -->
+            <div style="flex: 1; display: flex; justify-content: flex-end;">
+                <div style="position: relative; width: 300px;">
+                    <span style="position: absolute; left: 10px; top: 8px; font-size: 1.1rem;">🔍</span>
+                    <input type="text" id="search-oral-distrib" 
+                           placeholder="Rechercher un élève..." 
+                           onkeyup="findStudentInOralDistrib(this.value)"
+                           style="width: 100%; padding: 8px 8px 8px 35px; border: 1px solid #ccc; border-radius: 20px;">
+                </div>
+            </div>
+        </div>
+
+        <!-- NOUVEAU : Zone d'affichage du résultat (masquée par défaut) -->
+        <div id="oral-search-result" style="display: none; margin-bottom: 15px; padding: 15px; background: #e8f4fd; border: 1px solid #3498db; border-radius: 8px; color: #2c3e50; font-size: 0.95rem;">
         </div>
 
         <!-- Conteneur Drag & Drop des Jurys -->
@@ -3122,7 +3137,7 @@ function nav(id, btn) {
     renderLabels(); // <--- OBLIGATOIRE
 }
 // --- AJOUT POUR L'ORAL : Forcer le rendu visuel de la répartition à l'ouverture de l'onglet ---
-if(id === 'sec-oral-config') renderOralConfig();
+if(id === 'sec-oral-config') refreshOralConfigUI();
     if(id === 'sec-oral-jurys') renderOralTeachersTable();
     if(id === 'sec-oral-eleves') renderOralStudentsTable();
     if(id === 'sec-oral-repart') renderOralVisualDistribution();
@@ -15537,6 +15552,16 @@ document.getElementById('form-edit-student').addEventListener('submit', function
 
     closeEditModal();
     renderOralStudentsTable();
+
+    // --- NOUVEAU : Synchronisation de la répartition et sauvegarde ---
+    if (typeof syncOralDistributionData === 'function') {
+        syncOralDistributionData();
+    }
+    
+    if (typeof autoSave === 'function') {
+        autoSave();
+    }
+    // ------------------------------------------------------------------
 });
 
 // ==========================================
@@ -15935,17 +15960,8 @@ function runOralAlgorithm() {
     
     const globalStartTime = DB.oralConfig.general.start || "08:00";
 
-    // --- NOUVEAU : Récupération dynamique des Pauses ---
-    // (Ajustez les ID selon les champs de votre formulaire de configuration HTML)
-    const breaks = [];
-    const recreStart = document.getElementById('oral-recre-start')?.value;
-    const recreEnd = document.getElementById('oral-recre-end')?.value;
-    if (recreStart && recreEnd) breaks.push({ start: recreStart, end: recreEnd });
-
-    const repasStart = document.getElementById('oral-repas-start')?.value;
-    const repasEnd = document.getElementById('oral-repas-end')?.value;
-    if (repasStart && repasEnd) breaks.push({ start: repasStart, end: repasEnd });
-    // ----------------------------------------------------
+    // Récupération dynamique des Pauses depuis la base de données
+    const breaks = DB.oralConfig.pauses || [];
 
     DB.oralConfig.distribution = {};
     const jurysInfos = {}; 
@@ -15962,7 +15978,8 @@ function runOralAlgorithm() {
         jurysInfos[juryName] = {
             currentTime: globalStartTime, 
             themes: new Set(),
-            languages: new Set(juryLangs)
+            languages: new Set(juryLangs),
+            langCounts: {} // <-- NOUVEAU : Suivi du nombre de candidats par langue
         };
     });
 
@@ -16006,7 +16023,16 @@ function runOralAlgorithm() {
             const info = jurysInfos[juryName];
             let score = 0;
 
-            if (passage.langue && !info.languages.has(passage.langue)) return; 
+            // Si l'élève a une langue, on vérifie si le jury est compétent
+            if (passage.langue) {
+                if (!info.languages.has(passage.langue)) return; 
+                
+                // --- CORRECTIF D'ÉQUILIBRAGE DES LANGUES ---
+                // On retire 200 points pour chaque élève de cette langue déjà assigné à ce jury.
+                // Cela force un "tour de rôle" parfait (round-robin) entre les jurys capables.
+                const currentLangCount = info.langCounts[passage.langue] || 0;
+                score -= (currentLangCount * 200);
+            }
 
             score -= timeToMins(info.currentTime); 
 
@@ -16021,19 +16047,17 @@ function runOralAlgorithm() {
         });
 
         if (!bestJury) {
-            console.warn(`Passage forcé pour un groupe (aucun jury idéal).`);
+            console.warn(`Passage forcé pour un groupe (aucun jury idéal trouvé).`);
             bestJury = Object.keys(jurysInfos).reduce((a, b) => 
                 timeToMins(jurysInfos[a].currentTime) < timeToMins(jurysInfos[b].currentTime) ? a : b
             );
         }
 
         const info = jurysInfos[bestJury];
-        const tempsRequis = passage.duration + durHarm; // Le temps dont on a besoin sans être coupé
+        const tempsRequis = passage.duration + durHarm; 
         
-        // --- NOUVEAU : Application stricte du contrôleur de pause ---
+        // Le contrôleur de pause fait son travail
         const validStartTime = getNextValidStartTime(info.currentTime, tempsRequis, breaks);
-        // ------------------------------------------------------------
-
         const slotEndTime = addMinutesToTime(validStartTime, passage.duration);
         
         DB.oralConfig.distribution[bestJury].push({
@@ -16041,11 +16065,15 @@ function runOralAlgorithm() {
             theme: passage.theme,
             langue: passage.langue,
             students: passage.students,
-            startTime: validStartTime, // L'heure sécurisée
+            startTime: validStartTime,
             endTime: slotEndTime
         });
 
-        // Le curseur temporel du jury avance à la fin de l'harmonisation
+        // --- NOUVEAU : On met à jour le compteur de langue du jury ---
+        if (passage.langue) {
+            info.langCounts[passage.langue] = (info.langCounts[passage.langue] || 0) + 1;
+        }
+
         info.currentTime = addMinutesToTime(slotEndTime, durHarm);
         info.themes.add(passage.theme);
     });
@@ -16057,7 +16085,7 @@ function runOralAlgorithm() {
         renderOralVisualDistribution();
     }
     
-    alert("✅ Répartition générée avec succès ! Les pauses réglementaires (récréations/repas) ont été rigoureusement respectées.");
+    alert("✅ Répartition générée avec succès ! L'équilibrage des langues et les pauses ont été respectés.");
 }
 
 /**
@@ -19395,6 +19423,137 @@ function executeTeacherImport(data, mapping, isStrictReplace) {
     alert(`Terminé ! ${count} professeurs ajoutés.`);
 }
 
+/**
+ * @why Permet de retrouver instantanément un élève dans la répartition visuelle de l'Oral
+ * Affiche un bandeau informatif (Jury + Heures) et met en surbrillance la carte de l'élève.
+ */
+window.findStudentInOralDistrib = function(searchTerm) {
+    const resultBox = document.getElementById('oral-search-result');
+    const search = searchTerm.toLowerCase().trim();
+    
+    // Si la recherche est vide, on cache le bandeau et on retire les surlignages
+    if (!search) {
+        resultBox.style.display = 'none';
+        document.querySelectorAll('#oral-visual-distrib .dd-student').forEach(el => {
+            el.style.boxShadow = 'none';
+            el.style.transform = 'none';
+            el.style.border = '1px solid #eee';
+        });
+        return;
+    }
+
+    let foundHtml = "";
+    
+    // 1. On fouille dans la base de données pour générer le message du bandeau
+    if (DB.oralConfig && DB.oralConfig.distribution) {
+        for (const [juryName, passages] of Object.entries(DB.oralConfig.distribution)) {
+            passages.forEach(passage => {
+                passage.students.forEach(s => {
+                    const fullName = `${s.nom} ${s.prenom}`.toLowerCase();
+                    if (fullName.includes(search)) {
+                        foundHtml += `
+                        <div style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #bce8f1;">
+                            🎓 <strong>${s.nom.toUpperCase()} ${s.prenom}</strong> 
+                            est assigné(e) au jury N° <strong style="color: #2980b9;">${juryName}</strong> 
+                            <span style="color:#e67e22; font-weight:bold; margin-left: 10px;">
+                                ⏱️ Passage : ${passage.startTime} - ${passage.endTime}
+                            </span>
+                        </div>`;
+                    }
+                });
+            });
+        }
+    }
+
+    // Affichage du bandeau selon le résultat
+    if (foundHtml === "") {
+        resultBox.style.display = 'block';
+        resultBox.style.background = '#fdedec';
+        resultBox.style.borderColor = '#e74c3c';
+        resultBox.innerHTML = `❌ Aucun élève trouvé avec "<b>${searchTerm}</b>" dans la répartition actuelle.`;
+    } else {
+        resultBox.style.display = 'block';
+        resultBox.style.background = '#e8f4fd';
+        resultBox.style.borderColor = '#3498db';
+        resultBox.innerHTML = `✅ <strong>Résultat(s) de la recherche :</strong><br><br>${foundHtml}`;
+    }
+    
+    // 2. Surlignage visuel directement dans les colonnes Drag & Drop
+    document.querySelectorAll('#oral-visual-distrib .dd-student').forEach(el => {
+        // On vérifie le texte de l'élément visuel
+        if (el.innerText.toLowerCase().includes(search)) {
+            el.style.boxShadow = '0 0 0 3px #f1c40f'; // Épaisse bordure jaune
+            el.style.border = 'none';
+            el.style.transform = 'scale(1.03)'; // Léger zoom
+            el.style.transition = 'all 0.2s ease';
+            
+            // Fait défiler la page pour que l'élève soit visible (optionnel mais pratique)
+            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+            // On remet normal ceux qui ne correspondent pas
+            el.style.boxShadow = 'none';
+            el.style.border = '1px solid #eee';
+            el.style.transform = 'none';
+        }
+    });
+};
+/**
+ * @why Synchronise la répartition avec les nouvelles données des élèves 
+ * (Changement de parcours, langue, etc. APRES avoir fait la répartition)
+ */
+window.syncOralDistributionData = function() {
+    if (!DB.oralConfig || !DB.oralConfig.distribution) return;
+
+    Object.values(DB.oralConfig.distribution).forEach(passages => {
+        passages.forEach(passage => {
+            if (passage.students && passage.students.length > 0) {
+                // On prend l'ID du premier élève du passage (valable même pour les groupes)
+                const refId = passage.students[0].id;
+                const liveStudent = DB.oralConfig.students.find(s => s.id === refId);
+                
+                if (liveStudent) {
+                    // 1. On met à jour les informations du créneau (affichées sur la carte)
+                    passage.theme = liveStudent.parcours || "Général";
+                    passage.langue = liveStudent.langue ? liveStudent.langue.trim().toUpperCase() : null;
+                    
+                    // 2. On rafraîchit la référence complète de l'élève à l'intérieur
+                    passage.students = passage.students.map(ds => {
+                        return DB.oralConfig.students.find(s => s.id === ds.id) || ds;
+                    });
+                }
+            }
+        });
+    });
+
+    // 3. Rafraîchit visuellement les colonnes du drag & drop si l'onglet est ouvert
+    if (typeof renderOralVisualDistribution === 'function') {
+        renderOralVisualDistribution();
+    }
+};
+/**
+ * @why Récupère la salle associée à un jury en regardant la salle attribuée aux professeurs de ce jury.
+ * (Si deux professeurs d'un même jury ont des salles différentes par erreur, on prend la première trouvée).
+ */
+window.getJuryRoomName = function(juryId) {
+    // Sécurité : on vérifie que la base des professeurs existe
+    if (!DB.oralConfig || !DB.oralConfig.teachers) {
+        return "Non assignée";
+    }
+
+    // 1. On cherche tous les professeurs affectés à ce jury précis
+    // (On utilise == au lieu de === au cas où l'un soit un texte "1" et l'autre un chiffre 1)
+    const juryTeachers = DB.oralConfig.teachers.filter(t => t.jury == juryId);
+
+    // 2. On cherche parmi eux le premier qui a une salle renseignée
+    const teacherWithRoom = juryTeachers.find(t => t.salle && t.salle.trim() !== "");
+
+    // 3. Si on en trouve un, on renvoie sa salle, sinon on renvoie "Non assignée"
+    if (teacherWithRoom) {
+        return teacherWithRoom.salle.trim();
+    } else {
+        return "Non assignée";
+    }
+};
 // ----------------------
 </script>
 
