@@ -15570,11 +15570,37 @@ document.getElementById('form-edit-student').addEventListener('submit', function
 
 /**
  * @why Ouvre la modal et génère la liste des profs depuis la DB principale
+ * INCLUT UN PATCH DE RÉTROCOMPATIBILITÉ pour réparer les anciens IDs en double.
  */
 function openTeacherImportModal() {
     if (!DB.teachers || DB.teachers.length === 0) {
         return alert("Aucun professeur trouvé dans la base principale.");
     }
+
+    // --- DÉBUT DU PATCH DE RÉTROCOMPATIBILITÉ ---
+    // 1. On vérifie s'il y a des doublons d'ID dans la base générale
+    const seenIds = new Set();
+    let hasDuplicateIds = false;
+    
+    DB.teachers.forEach(t => {
+        if (seenIds.has(t.id)) {
+            hasDuplicateIds = true;
+        }
+        seenIds.add(t.id);
+    });
+
+    // 2. Si on a détecté des clones, on répare toute la base silencieusement
+    if (hasDuplicateIds) {
+        console.log("🛠️ Réparation des IDs professeurs (Rétrocompatibilité)...");
+        DB.teachers.forEach((t, index) => {
+            // On recrée un ID unique pour chacun
+            t.id = "FIX-" + Date.now() + "-" + index;
+        });
+        
+        // On déclenche une sauvegarde automatique pour acter la réparation
+        if (typeof autoSave === 'function') autoSave(); 
+    }
+    // --- FIN DU PATCH ---
 
     const listDiv = document.getElementById('import-teachers-list');
     listDiv.innerHTML = '';
@@ -15609,11 +15635,12 @@ function openTeacherImportModal() {
             }
         };
 
+        // Note : J'ai ajouté "p.matiere || p.matieres" pour gérer les deux orthographes selon l'import
         row.innerHTML = `
             <div><input type="checkbox" class="chk-import-prof" value="${p.id}" ${isAlreadyIn ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;"></div>
             <div style="font-weight: 600; color: #2c3e50;">${p.nom.toUpperCase()} <span style="font-weight: 400;">${p.prenom}</span></div>
-            <div style="color: #7f8c8d; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${p.matieres || ''}">
-                ${p.matieres || '<i style="color:#ccc">Non renseigné</i>'}
+            <div style="color: #7f8c8d; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${p.matiere || p.matieres || ''}">
+                ${p.matiere || p.matieres || '<i style="color:#ccc">Non renseigné</i>'}
             </div>
         `;
         listDiv.appendChild(row);
@@ -19394,11 +19421,13 @@ function executeTeacherImport(data, mapping, isStrictReplace) {
     let count = 0;
     if (isStrictReplace) DB.teachers = []; 
 
-    data.forEach(row => {
+    // 1. On rajoute 'index' ici pour récupérer le numéro de la ligne en cours
+    data.forEach((row, index) => {
         const nom = mapping.nom ? row[mapping.nom] : null;
         if(nom) {
             const newT = {
-                id: generateSecureID(), // Appel de l'utilitaire universel (Remplace Date.now + Math.random)
+                // 2. On greffe l'index à la fin de ton ID sécurisé pour forcer l'unicité
+                id: generateSecureID() + "-" + index, 
                 nom: String(nom).toUpperCase().trim(),
                 prenom: mapping.prenom && row[mapping.prenom] ? String(row[mapping.prenom]).trim() : "",
                 civ: "M.",
