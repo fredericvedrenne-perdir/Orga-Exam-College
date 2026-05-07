@@ -18832,7 +18832,7 @@ window.exportOralConvocEleves = function() {
         doc.text(`Vous êtes convoqué(e) à vous présenter devant le :`, 20, 120);
         doc.setFontSize(14);
         doc.setFont("helvetica", "bold");
-        doc.text(`JURY ${schedule.juryId} - ${roomName}`, 20, 130);
+        doc.text(`JURY ${schedule.juryId} - Salle ${roomName}`, 20, 130);
         doc.text(`Heure de passage : ${schedule.startTime}`, 20, 138);
         
         // --- Insertion des Mentions Spécifiques ---
@@ -19063,7 +19063,7 @@ window.exportOralConvocProfs = function() {
         doc.text(`Enseignant(e) : ${t.nom.toUpperCase()} ${t.prenom || ""}`, 14, 50);
         
         const roomName = getJuryRoomName(t.jury);
-        doc.text(`Affectation : JURY ${t.jury} - ${roomName}`, 14, 60);
+        doc.text(`Affectation : JURY ${t.jury} - Salle ${roomName}`, 14, 60);
         
         const colleagues = teachers.filter(c => c.jury === t.jury && c.id !== t.id).map(c => `${c.nom} ${c.prenom || ""}`).join(', ');
         doc.setFontSize(10);
