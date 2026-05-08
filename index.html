@@ -851,6 +851,33 @@ input:checked + .slider-modern:before { transform: translateX(22px); }
             grid-column: span 1;
         }
     }
+	
+	/* Style des cartes de pause dans la répartition */
+.pause-card {
+    background-color: #f8f9fa !important;
+    border: 2px dashed #dee2e6 !important;
+    color: #6c757d;
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    margin: 5px 0;
+    cursor: not-allowed; /* Indique qu'on ne peut pas la déplacer */
+    opacity: 0.8;
+}
+
+.pause-icon {
+    font-size: 1.5rem;
+    margin-right: 15px;
+}
+
+.pause-info {
+    font-size: 0.85rem;
+    line-height: 1.2;
+}
+
+/* On s'assure que les cartes élèves ressortent bien par rapport aux pauses */
+.indiv-card { border-left: 5px solid #007bff; background: white; }
+.group-card { border-left: 5px solid #6f42c1; background: #f3f0ff; }
 
 </style>
 </head>
@@ -1736,7 +1763,8 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
                     <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6; text-align: left;">
                         <th style="padding: 12px;">Nom / Prénom</th>
                         <th style="padding: 12px;">Classe</th>
-                        <th style="padding: 12px;">Sexe</th> 
+                        <th style="padding: 12px;">Sexe</th>
+						<th style="padding: 12px; text-align: center;">⭐</th>
                         <th style="padding: 12px;">Langue</th>
                         <th style="padding: 12px;">Groupe</th>
                         <th style="padding: 12px;">Parcours</th>
@@ -1756,6 +1784,13 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
                 <form id="form-edit-student" style="display: grid; gap: 15px; margin-top: 20px;">
                     <input type="hidden" id="edit-student-id">
                     
+					<div style="background: #fff4e6; padding: 12px; border-radius: 8px; border: 1px solid #ffe8cc;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold; color: #d9480f;">
+                            <input type="checkbox" id="edit-oral-priority" style="width: 18px; height: 18px;">
+                            ⭐ Élève prioritaire (passage en début d'épreuve)
+                        </label>
+                    </div>
+					
                     <div>
                         <label style="display: block; font-weight: bold;">Langue choisie</label>
                         <select id="edit-oral-lang" style="width: 100%; padding: 8px;"></select>
@@ -1819,13 +1854,13 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
         <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
            <thead>
     <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6; text-align: left;">
-        <th style="padding: 12px;">Nom / Prénom</th>
-        <th style="padding: 12px;">Matière(s)</th>
-        <th style="padding: 12px;">Disponibilité</th>
-        <th style="padding: 12px;">Langue évaluée</th>
-        <th style="padding: 12px;">Jury (N°)</th>
-		<th style="padding: 12px;">Salle</th>
-		<th style="padding: 12px; text-align: center;">Actions</th>
+<th style="padding: 12px; width: 18%;">Nom / Prénom</th>
+<th style="padding: 12px; width: 15%;">Matière(s)</th>
+<th style="padding: 12px; width: 22%;">Disponibilité</th>
+<th style="padding: 12px; width: 12%;">Langue évaluée</th>
+<th style="padding: 12px; width: 10%;">Jury (N°)</th>
+<th style="padding: 12px; width: 10%;">Salle</th>
+<th style="padding: 12px; width: 13%; text-align: center;">Actions</th>
     </tr>
 </thead>
             <tbody id="oral-teachers-body">
@@ -1919,6 +1954,9 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
         <div class="action-bar" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap; align-items: center;">
             <button class="btn btn-success" onclick="openOralDistribWizard()">🚀 Assistant de Répartition</button>
             <button class="btn btn-danger" onclick="clearOralDistribution()">🗑️ Vider</button>
+			<button onclick="exportOralDistributionExcel()" class="btn btn-success">
+    <i class="fas fa-file-excel"></i> Exporter la Répartition (Excel)
+</button>
             
             <!-- NOUVEAU : Champ de recherche avec loupe -->
             <div style="flex: 1; display: flex; justify-content: flex-end;">
@@ -1976,9 +2014,10 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
                 
                 <label style="font-weight:bold; font-size:0.9rem; display:block; margin-bottom:5px;">Placement des groupes :</label>
                 <select id="oral-strat-group" class="form-control" style="margin-bottom: 15px;">
-                    <option value="start">En début de demi-journée (recommandé)</option>
-                    <option value="end">En fin de demi-journée</option>
-                    <option value="mixed">Mélangés avec les individuels</option>
+                    <option value="start">En début d'épreuve</option>
+					<option value="mixed">Mélangés avec les individuels</option>
+                    <option value="end">En fin d'épreuve</option>
+
                 </select>
 
                 <label style="font-weight:bold; font-size:0.9rem; display:block; margin-bottom:5px;">Thématiques par Jury :</label>
@@ -15432,6 +15471,7 @@ function renderOralStudentsTable() {
                 <td style="padding: 12px;"><b>${s.nom.toUpperCase()}</b> ${s.prenom}</td>
                 <td style="padding: 12px;"><span style="background:#eee; padding:2px 6px; border-radius:4px; font-size:0.85em;">${s.classe}</span></td>
                 <td style="padding: 12px; font-weight: bold; color: #7f8c8d;">${s.sexe || '?'}</td>
+				<td style="padding: 12px; text-align:center; font-size: 1.2rem;"><span onclick="event.stopPropagation(); togglePriority('${s.id}')" style="cursor:pointer; filter: ${s.isPriority ? 'none' : 'grayscale(1) opacity(0.2)'};" title="${s.isPriority ? 'Prioritaire' : 'Cliquer pour rendre prioritaire'}">⭐</span></td>
                 <td style="padding: 12px;">${s.langue || '-'}</td>
                 <td style="padding: 12px;">${s.groupId ? '👥 <small>En groupe</small>' : '👤 <small>Individuel</small>'}</td>
                 <td style="padding: 12px;">${s.parcours || '-'}</td>
@@ -15445,24 +15485,53 @@ function renderOralStudentsTable() {
     });
 }
 
+window.togglePriority = function(id) {
+    const s = window.oralConfig.students.find(st => st.id == id);
+    if (s) {
+        s.isPriority = !s.isPriority;
+        renderOralStudentsTable();
+        if (typeof autoSave === 'function') autoSave();
+    }
+};
+
+/**
+ * @why Ouvre la modal de modification d'un élève et pré-remplit les champs, 
+ * y compris la nouvelle option de priorité ⭐.
+ */
 function openEditModal(studentId) {
+    // 1. Recherche de l'élève (gestion flexible du type d'ID)
     const student = window.oralConfig.students.find(s => s.id == studentId);
     if (!student) return;
 
+    // 2. Remplissage des champs de base
     document.getElementById('edit-student-id').value = studentId;
     document.getElementById('edit-modal-title').textContent = `Modification : ${student.nom} ${student.prenom}`;
 
+    // 3. Gestion de la case à cocher Priorité ⭐
+    const prioCheckbox = document.getElementById('edit-oral-priority');
+    if (prioCheckbox) {
+        prioCheckbox.checked = student.isPriority || false;
+    }
+
+    // 4. Remplissage dynamique des menus déroulants (Langues)
     const langSelect = document.getElementById('edit-oral-lang');
     langSelect.innerHTML = '<option value="">Aucune</option>' + 
-        window.oralConfig.languages.map(l => `<option value="${l}" ${student.langue === l ? 'selected' : ''}>${l}</option>`).join('');
+        window.oralConfig.languages.map(l => 
+            `<option value="${l}" ${student.langue === l ? 'selected' : ''}>${l}</option>`
+        ).join('');
 
+    // 5. Remplissage dynamique des parcours
     const parcoursSelect = document.getElementById('edit-oral-parcours');
     parcoursSelect.innerHTML = '<option value="">Choisir un parcours...</option>' + 
-        Object.keys(window.oralConfig.themes).map(t => `<option value="${t}" ${student.parcours === t ? 'selected' : ''}>${t}</option>`).join('');
+        Object.keys(window.oralConfig.themes).map(t => 
+            `<option value="${t}" ${student.parcours === t ? 'selected' : ''}>${t}</option>`
+        ).join('');
 
+    // 6. Mise à jour des dépendances (Sujets et Groupes)
     updateSubThemeDropdown(student.sujet);
     refreshGroupDisplay(student);
 
+    // 7. Affichage de la modal
     document.getElementById('modal-edit-student').style.display = 'flex';
 }
 
@@ -15525,35 +15594,44 @@ function closeEditModal() {
     document.getElementById('modal-edit-student').style.display = 'none';
 }
 
-// L'UNIQUE gestionnaire d'enregistrement (nettoyé des doublons)
+// L'UNIQUE gestionnaire d'enregistrement mis à jour
 document.getElementById('form-edit-student').addEventListener('submit', function(e) {
     e.preventDefault();
+    
     const id = document.getElementById('edit-student-id').value;
     const student = window.oralConfig.students.find(s => s.id == id);
     if (!student) return;
 
+    // --- 1. RÉCUPÉRATION DES NOUVELLES VALEURS (Y COMPRIS L'ÉTOILE) ---
     const newLang = document.getElementById('edit-oral-lang').value;
     const newParcours = document.getElementById('edit-oral-parcours').value;
     const newSujet = document.getElementById('edit-oral-sujet').value;
+    const newPriority = document.getElementById('edit-oral-priority').checked; // <--- BIEN RÉCUPÉRER ICI
 
+    // --- 2. APPLICATION DES MODIFICATIONS ---
     if (student.groupId) {
+        // Si l'élève est en groupe, on applique les changements à tout le groupe
         window.oralConfig.students.forEach(s => {
             if (s.groupId === student.groupId) {
                 s.langue = newLang;
                 s.parcours = newParcours;
                 s.sujet = newSujet;
+                s.isPriority = newPriority; // <--- APPLIQUÉ AU GROUPE
             }
         });
     } else {
+        // Élève individuel
         student.langue = newLang;
         student.parcours = newParcours;
         student.sujet = newSujet;
+        student.isPriority = newPriority; // <--- APPLIQUÉ À L'INDIVIDU
     }
 
+    // --- 3. FINALISATION ---
     closeEditModal();
-    renderOralStudentsTable();
+    renderOralStudentsTable(); // Relance le rendu du tableau pour voir l'étoile changer
 
-    // --- NOUVEAU : Synchronisation de la répartition et sauvegarde ---
+    // Synchronisation et sauvegarde
     if (typeof syncOralDistributionData === 'function') {
         syncOralDistributionData();
     }
@@ -15561,7 +15639,6 @@ document.getElementById('form-edit-student').addEventListener('submit', function
     if (typeof autoSave === 'function') {
         autoSave();
     }
-    // ------------------------------------------------------------------
 });
 
 // ==========================================
@@ -15707,7 +15784,8 @@ function importTeachersToOral(mode) {
 }
 
 /**
- * @why Affiche le tableau avec des champs modifiables "en ligne"
+ * @why Rendu du tableau des professeurs avec alignement parfait, 
+ * menu déroulant pour les langues et champs éditables pour Jury/Salle.
  */
 function renderOralTeachersTable() {
     const body = document.getElementById('oral-teachers-body');
@@ -15717,43 +15795,93 @@ function renderOralTeachersTable() {
 
     body.innerHTML = '';
 
-    const langOptions = '<option value="">Aucune</option>' + 
-        window.oralConfig.languages.map(l => `<option value="${l}">${l}</option>`).join('');
+    // Tri par numéro de jury
+    const sortedTeachers = [...window.oralConfig.teachers].sort((a, b) => {
+        return (a.jury || "").localeCompare(b.jury || "", undefined, {numeric: true});
+    });
 
-    window.oralConfig.teachers.forEach((t) => {
-        if (t.nom.toLowerCase().includes(search)) {
+    // Récupération des langues pour le menu déroulant
+    const availableLangs = window.oralConfig.languages || [];
+
+    sortedTeachers.forEach(t => {
+        if (t.nom.toLowerCase().includes(search) || (t.matiere && t.matiere.toLowerCase().includes(search))) {
+            
             const tr = document.createElement('tr');
             tr.style.borderBottom = "1px solid #eee";
-            
+            tr.style.backgroundColor = "white";
+
+            const startTime = t.startTime || window.oralConfig.general.start || "08:00";
+            const endTime = t.endTime || "17:00";
+
+            // Construction des options du menu langue
+            let langOptions = `<option value="">Aucune</option>`;
+            availableLangs.forEach(l => {
+                langOptions += `<option value="${l}" ${t.langue === l ? 'selected' : ''}>${l}</option>`;
+            });
+
             tr.innerHTML = `
-                <td style="padding: 12px;"><b>${t.nom.toUpperCase()}</b> ${t.prenom}</td>
-                <td style="padding: 12px; font-size: 0.9em; color: #555;">${t.matieres}</td>
-                <td style="padding: 12px;">
-                    <select onchange="updateOralTeacher('${t.id}', 'dispo', this.value)" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; width: 100%;">
-                        <option value="Journée" ${t.dispo === 'Journée' ? 'selected' : ''}>☀️ Journée</option>
-                        <option value="Matin" ${t.dispo === 'Matin' ? 'selected' : ''}>🌅 Matin</option>
-                        <option value="Après-midi" ${t.dispo === 'Après-midi' ? 'selected' : ''}>🌇 Après-midi</option>
+                <td style="padding: 12px; width: 18%;"><b>${t.nom.toUpperCase()}</b> ${t.prenom || ""}</td>
+                
+                <td style="padding: 12px; width: 15%; color: #7f8c8d; font-size: 0.85em;">${t.matiere || t.fonction || '-'}</td>
+                
+                <td style="padding: 12px; width: 20%;">
+                    <div style="display: flex; align-items: center; gap: 4px; background: #f8f9fa; padding: 4px; border-radius: 4px; border: 1px solid #dee2e6; width: fit-content;">
+                        <input type="time" value="${startTime}" 
+                               onchange="updateJuryTime('${t.id}', 'startTime', this.value)"
+                               style="border:none; background:transparent; font-size: 0.85em; width:70px;">
+                        <span>-</span>
+                        <input type="time" value="${endTime}" 
+                               onchange="updateJuryTime('${t.id}', 'endTime', this.value)"
+                               style="border:none; background:transparent; font-size: 0.85em; width:70px;">
+                    </div>
+                </td>
+                
+                <td style="padding: 12px; width: 12%;">
+                    <select onchange="updateTeacherField('${t.id}', 'langue', this.value)"
+                            style="width: 100%; padding: 5px; border: 1px solid #eee; border-radius: 4px; font-size: 0.9em;">
+                        ${langOptions}
                     </select>
                 </td>
-                <td style="padding: 12px;">
-                    <select onchange="updateOralTeacher('${t.id}', 'langue', this.value)" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; width: 100%;">
-                        ${langOptions.replace(`value="${t.langue}"`, `value="${t.langue}" selected`)}
-                    </select>
+                
+                <td style="padding: 12px; width: 10%;">
+                    <input type="text" value="${t.jury || ''}" 
+                           onchange="updateTeacherField('${t.id}', 'jury', this.value)"
+                           style="width: 50px; padding: 5px; border: 1px solid #3498db; border-radius: 4px; font-weight: bold; text-align: center; color: #2980b9;">
                 </td>
-                <td style="padding: 12px;">
-                    <input type="text" placeholder="Ex: 01" value="${t.jury || ''}" oninput="updateOralTeacher('${t.id}', 'jury', this.value)" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; width: 60px;">
+                
+                <td style="padding: 12px; width: 10%;">
+                    <input type="text" value="${t.salle || ''}" 
+                           placeholder="Salle"
+                           onchange="updateTeacherField('${t.id}', 'salle', this.value)"
+                           style="width: 70px; padding: 5px; border: 1px solid #eee; border-radius: 4px;">
                 </td>
-                <td style="padding: 12px;">
-                    <input type="text" placeholder="Ex: S.112" value="${t.salle || ''}" oninput="updateOralTeacher('${t.id}', 'salle', this.value)" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; width: 100px;">
-                </td>
-                <td style="padding: 12px; text-align: center;">
-                    <button onclick="removeOralTeacher('${t.id}')" style="background: none; border: none; color: #e74c3c; cursor: pointer; font-size: 1.2em;">🗑️</button>
+                
+                <td style="padding: 12px; width: 15%; text-align: center;">
+                    <button onclick="deleteOralTeacher('${t.id}')" 
+                            style="background: #fadbd8; color: #e74c3c; border: none; padding: 5px 10px; border-radius: 4px; cursor:pointer; font-size: 0.8em;">
+                        Supprimer
+                    </button>
                 </td>
             `;
             body.appendChild(tr);
         }
     });
 }
+
+/**
+ * @why Mise à jour générique d'un champ et sauvegarde
+ */
+function updateTeacherField(id, field, value) {
+    const teacher = window.oralConfig.teachers.find(t => t.id == id);
+    if (teacher) {
+        teacher[field] = value;
+        if (typeof autoSave === 'function') autoSave();
+        // Si on change le jury ou la salle, on rafraîchit pour la cohérence visuelle
+        if (field === 'jury' || field === 'salle') renderOralTeachersTable();
+    }
+}
+
+
 
 // Fonction utilitaire pour la sauvegarde automatique des champs en ligne
 window.updateOralTeacher = function(id, field, value) {
@@ -15971,45 +16099,49 @@ window.auditLanguageCapacity = function() {
 };
 
 /**
- * @why Cœur algorithmique de l'Oral. Distribue les candidats dans DB.oralConfig.distribution
- * en respectant les contraintes de temps, de langues, de thématiques, et gère strictement les PAUSES.
+ * @why Cœur algorithmique de l'Oral (Version 3.0).
+ * Gère : 
+ * 1. Priorités (⭐) : Placés en début de journée.
+ * 2. Disponibilités Jurys : Heure de début et de fin spécifique par jury.
+ * 3. Pauses (☕) : Saut automatique des créneaux de repos.
+ * 4. Équilibrage : Langues et thématiques (EPI/Parcours).
  */
 function runOralAlgorithm() {
-    // --- 0. BARRIÈRE DE SÉCURITÉ ---
+    // --- 0. SÉCURITÉ ET PARAMÈTRES ---
     if (typeof auditLanguageCapacity === 'function' && !auditLanguageCapacity()) return; 
 
-    // 1. Récupération des paramètres
     const durIndiv = parseInt(document.getElementById('oral-dur-indiv')?.value) || 15;
     const durGroup = parseInt(document.getElementById('oral-dur-group')?.value) || 25;
     const durHarm = parseInt(document.getElementById('oral-dur-harm')?.value) || 5;
     const stratGroup = document.getElementById('oral-strat-group')?.value || 'start'; 
     const stratTheme = document.getElementById('oral-strat-theme')?.value || 'homogenous'; 
-    
-    const globalStartTime = DB.oralConfig.general.start || "08:00";
-
-    // Récupération dynamique des Pauses depuis la base de données
     const breaks = DB.oralConfig.pauses || [];
 
     DB.oralConfig.distribution = {};
     const jurysInfos = {}; 
 
     const uniqueJurys = [...new Set(DB.oralConfig.teachers.map(t => t.jury).filter(Boolean))];
-    if (uniqueJurys.length === 0) return alert("Erreur : Aucun jury n'a été défini.");
+    if (uniqueJurys.length === 0) return alert("Erreur : Aucun jury n'a été défini dans l'onglet Jurys.");
 
+    // --- 1. INITIALISATION DES JURYS (PLAGES HORAIRES SPÉCIFIQUES) ---
     uniqueJurys.forEach(juryName => {
         DB.oralConfig.distribution[juryName] = [];
-        const juryLangs = DB.oralConfig.teachers
-            .filter(t => t.jury === juryName && t.langue)
-            .map(t => t.langue.trim().toUpperCase());
-            
+        
+        // On récupère les horaires saisis dans le tableau des jurys
+        const members = DB.oralConfig.teachers.filter(t => t.jury === juryName);
+        const specificStart = members.find(m => m.startTime)?.startTime || DB.oralConfig.general.start || "08:00";
+        const specificEnd = members.find(m => m.endTime)?.endTime || "17:00";
+
         jurysInfos[juryName] = {
-            currentTime: globalStartTime, 
+            currentTime: specificStart, 
+            maxTime: specificEnd, // Borne de fin de service
             themes: new Set(),
-            languages: new Set(juryLangs),
-            langCounts: {} // <-- NOUVEAU : Suivi du nombre de candidats par langue
+            languages: new Set(members.map(t => t.langue?.trim().toUpperCase()).filter(Boolean)),
+            langCounts: {}
         };
     });
 
+    // --- 2. PRÉPARATION ET TRI DES PASSAGES (PRIORITÉS ⭐) ---
     let passages = [];
     let processedStudentIds = new Set();
 
@@ -16036,33 +16168,56 @@ function runOralAlgorithm() {
         passages.push(currentPassage);
     });
 
-    if (stratGroup === 'start') {
-        passages.sort((a, b) => (a.isGroup === b.isGroup) ? 0 : a.isGroup ? -1 : 1);
-    } else if (stratGroup === 'end') {
-        passages.sort((a, b) => (a.isGroup === b.isGroup) ? 0 : a.isGroup ? 1 : -1);
-    } 
+    // Tri de la pile de travail
+    passages.sort((a, b) => {
+        // A. Priorité ⭐ (Un passage est prioritaire si au moins un élève l'est)
+        const aPrio = a.students.some(s => s.isPriority);
+        const bPrio = b.students.some(s => s.isPriority);
+        if (aPrio && !bPrio) return -1;
+        if (!aPrio && bPrio) return 1;
 
+        // B. Stratégie de groupe
+        if (stratGroup === 'start') {
+            const groupSort = (a.isGroup === b.isGroup) ? 0 : a.isGroup ? -1 : 1;
+            if (groupSort !== 0) return groupSort;
+        } else if (stratGroup === 'end') {
+            const groupSort = (a.isGroup === b.isGroup) ? 0 : a.isGroup ? 1 : -1;
+            if (groupSort !== 0) return groupSort;
+        }
+
+        // C. Stabilité alphabétique
+        return a.students[0].nom.localeCompare(b.students[0].nom);
+    });
+
+    // --- 3. DISTRIBUTION DYNAMIQUE ---
     passages.forEach(passage => {
         let bestJury = null;
         let bestScore = -Infinity;
+        const tempsRequisTotal = passage.duration + durHarm;
 
         uniqueJurys.forEach(juryName => {
             const info = jurysInfos[juryName];
+            
+            // Calcul de l'heure de début possible en tenant compte des pauses
+            const potentialStart = getNextValidStartTime(info.currentTime, tempsRequisTotal, breaks);
+            const potentialEnd = addMinutesToTime(potentialStart, passage.duration);
+
+            // BARRIÈRE : Le jury a-t-il fini son service ?
+            if (timeToMins(potentialEnd) > timeToMins(info.maxTime)) return;
+
             let score = 0;
 
-            // Si l'élève a une langue, on vérifie si le jury est compétent
+            // Filtre et Équilibrage des Langues
             if (passage.langue) {
                 if (!info.languages.has(passage.langue)) return; 
-                
-                // --- CORRECTIF D'ÉQUILIBRAGE DES LANGUES ---
-                // On retire 200 points pour chaque élève de cette langue déjà assigné à ce jury.
-                // Cela force un "tour de rôle" parfait (round-robin) entre les jurys capables.
                 const currentLangCount = info.langCounts[passage.langue] || 0;
-                score -= (currentLangCount * 200);
+                score -= (currentLangCount * 200); 
             }
 
-            score -= timeToMins(info.currentTime); 
+            // Priorité au jury qui est disponible le plus tôt
+            score -= timeToMins(potentialStart); 
 
+            // Stratégie thématique (EPI/Parcours)
             const hasTheme = info.themes.has(passage.theme);
             if (stratTheme === 'homogenous' && hasTheme) score += 50; 
             else if (stratTheme === 'heterogenous' && !hasTheme) score += 50; 
@@ -16073,48 +16228,46 @@ function runOralAlgorithm() {
             }
         });
 
-        if (!bestJury) {
-            console.warn(`Passage forcé pour un groupe (aucun jury idéal trouvé).`);
-            bestJury = Object.keys(jurysInfos).reduce((a, b) => 
-                timeToMins(jurysInfos[a].currentTime) < timeToMins(jurysInfos[b].currentTime) ? a : b
-            );
+        // Attribution du passage au meilleur jury trouvé
+        if (bestJury) {
+            const info = jurysInfos[bestJury];
+            const finalStart = getNextValidStartTime(info.currentTime, tempsRequisTotal, breaks);
+            const finalEnd = addMinutesToTime(finalStart, passage.duration);
+            
+            DB.oralConfig.distribution[bestJury].push({
+                type: passage.isGroup ? "group" : "indiv",
+                theme: passage.theme,
+                langue: passage.langue,
+                students: passage.students,
+                startTime: finalStart,
+                endTime: finalEnd
+            });
+
+            // Mise à jour des compteurs du jury
+            if (passage.langue) {
+                info.langCounts[passage.langue] = (info.langCounts[passage.langue] || 0) + 1;
+            }
+            info.currentTime = addMinutesToTime(finalEnd, durHarm);
+            info.themes.add(passage.theme);
+        } else {
+            console.error(`Impossible de placer l'élève ${passage.students[0].nom} : aucun jury disponible dans sa plage horaire.`);
         }
-
-        const info = jurysInfos[bestJury];
-        const tempsRequis = passage.duration + durHarm; 
-        
-        // Le contrôleur de pause fait son travail
-        const validStartTime = getNextValidStartTime(info.currentTime, tempsRequis, breaks);
-        const slotEndTime = addMinutesToTime(validStartTime, passage.duration);
-        
-        DB.oralConfig.distribution[bestJury].push({
-            type: passage.isGroup ? "group" : "indiv",
-            theme: passage.theme,
-            langue: passage.langue,
-            students: passage.students,
-            startTime: validStartTime,
-            endTime: slotEndTime
-        });
-
-        // --- NOUVEAU : On met à jour le compteur de langue du jury ---
-        if (passage.langue) {
-            info.langCounts[passage.langue] = (info.langCounts[passage.langue] || 0) + 1;
-        }
-
-        info.currentTime = addMinutesToTime(slotEndTime, durHarm);
-        info.themes.add(passage.theme);
     });
 
+    // --- 4. FINALISATION ---
     const modalWizard = document.getElementById('modal-oral-wizard');
     if (modalWizard) modalWizard.style.display = 'none';
     
-    if (typeof renderOralVisualDistribution === 'function') {
-        renderOralVisualDistribution();
-    }
+    if (typeof renderOralVisualDistribution === 'function') renderOralVisualDistribution();
     
-    alert("✅ Répartition générée avec succès ! L'équilibrage des langues et les pauses ont été respectés.");
+    // Vérification si des élèves n'ont pas été placés
+    const totalPlaced = Object.values(DB.oralConfig.distribution).reduce((sum, list) => sum + list.length, 0);
+    if (totalPlaced < passages.length) {
+        alert(`⚠️ Attention : Seuls ${totalPlaced} passages sur ${passages.length} ont pu être placés. Vérifiez les disponibilités horaires de vos jurys.`);
+    } else {
+        alert("✅ Répartition terminée avec succès !");
+    }
 }
-
 /**
  * @why Utilitaire (Helper) pour l'addition de minutes à une heure au format "HH:MM".
  * Refactorisé en "Clean Code" : réutilise les convertisseurs mathématiques pour éviter les bugs liés à l'objet Date.
@@ -16147,34 +16300,36 @@ function minsToTime(mins) {
 }
 
 /**
- * @why Vérifie si un créneau chevauche une pause. Si oui, repousse l'heure à la fin de la pause.
- * Modularité : La fonction attend les pauses en argument, la rendant réutilisable n'importe où.
+ * @why Vérifie si un créneau [début + durée] chevauche une pause. 
+ * Si oui, repousse l'heure au premier créneau disponible après la pause.
  * @param {string} startTimeStr - Heure de début prévue (ex: "10:00")
- * @param {number} durationMins - Durée du passage en minutes
- * @param {Array} pauses - Tableau optionnel des pauses [{start: "10:20", end: "10:35"}]
+ * @param {number} durationMins - Durée totale (passage + harmonisation éventuellement)
+ * @param {Array} pauses - Tableau des pauses [{start: "10:20", end: "10:35"}]
  * @returns {string} L'heure de début valide (ex: "10:35")
  */
 function getNextValidStartTime(startTimeStr, durationMins, pauses = []) {
     let startMins = timeToMins(startTimeStr);
     let endMins = startMins + durationMins;
     
-    // On trie les pauses par ordre chronologique pour que la boucle while soit efficace
+    // 1. On s'assure que les pauses sont triées chronologiquement
     const sortedPauses = [...pauses].sort((a, b) => timeToMins(a.start) - timeToMins(b.start));
 
     let hasConflict = true;
+    // On boucle tant qu'un conflit est trouvé (au cas où deux pauses se suivent)
     while (hasConflict) {
         hasConflict = false;
         for (let p of sortedPauses) {
             let pStart = timeToMins(p.start);
             let pEnd = timeToMins(p.end);
 
-            // Chevauchement : Le créneau commence AVANT la fin de la pause ET finit APRÈS le début de la pause
+            // LOGIQUE DE CONFLIT : 
+            // Le créneau commence AVANT la fin de la pause ET finit APRÈS le début de la pause
             if (startMins < pEnd && endMins > pStart) {
-                // On repousse le début du créneau exactement à la fin de la pause
+                // On repousse le début exactement à la fin de la pause
                 startMins = pEnd;
                 endMins = startMins + durationMins;
                 hasConflict = true; 
-                break; // On casse la boucle pour revérifier depuis le début
+                break; // On recommence la vérification avec le nouvel horaire
             }
         }
     }
@@ -16182,82 +16337,107 @@ function getNextValidStartTime(startTimeStr, durationMins, pauses = []) {
 }
 
 /**
- * @why Recalcule les horaires (début/fin) de tous les créneaux d'un jury en esquivant les pauses.
+ * @why Recalcule les horaires de passage pour un jury spécifique.
+ * Utilisé après un Drag & Drop ou une modification manuelle pour 
+ * s'assurer que les horaires se suivent sans chevaucher les pauses.
  */
 function recalculateJuryTimes(juryName) {
+    // 1. Récupération des créneaux (slots) de ce jury
     const slots = DB.oralConfig.distribution[juryName];
     if (!slots || slots.length === 0) return;
 
+    // 2. Récupération des paramètres globaux
     const globalStartTime = DB.oralConfig.general.start || "08:00";
     const durHarm = parseInt(document.getElementById('oral-dur-harm')?.value) || 5;
+    const durIndiv = parseInt(document.getElementById('oral-dur-indiv')?.value) || 15;
+    const durGroup = parseInt(document.getElementById('oral-dur-group')?.value) || 25;
+    
+    // 3. RÉCUPÉRATION DES PAUSES (Essentiel pour le calcul)
+    const breaks = DB.oralConfig.pauses || [];
 
     let currentStartTime = globalStartTime;
 
     slots.forEach(slot => {
-        const durIndiv = parseInt(document.getElementById('oral-dur-indiv')?.value) || 15;
-        const durGroup = parseInt(document.getElementById('oral-dur-group')?.value) || 25;
+        // Détermination de la durée selon le type de passage
         const passageDuration = slot.type === "group" ? durGroup : durIndiv;
+        
+        // TEMPS REQUIS : On vérifie si l'épreuve + l'harmonisation tiennent
+        // cela évite de finir l'élève à 12h00 mais de n'avoir l'harmonisation qu'à 12h05 (pendant la pause)
+        const totalBlockMins = passageDuration + durHarm;
 
-        // 1. AJOUT CRUCIAL : Esquive des pauses
-        currentStartTime = getNextValidStartTime(currentStartTime, passageDuration);
+        // 4. APPEL SÉCURISÉ : On passe les "breaks" à la fonction
+        currentStartTime = getNextValidStartTime(currentStartTime, totalBlockMins, breaks);
 
-        // 2. Assignation
+        // 5. Mise à jour du créneau
         slot.startTime = currentStartTime;
         slot.endTime = addMinutesToTime(currentStartTime, passageDuration);
 
-        // 3. Préparation pour l'élève suivant (Fin de l'épreuve + Harmonisation)
+        // 6. Préparation du créneau suivant (Heure de fin + Harmonisation)
         currentStartTime = addMinutesToTime(slot.endTime, durHarm);
     });
+
+    // 7. Mise à jour visuelle si nécessaire
+    if (typeof renderOralVisualDistribution === 'function') {
+        renderOralVisualDistribution();
+    }
 }
 
 /**
- * @why Génère l'affichage des cartes de jurys avec des zones de dépôt "inter-créneaux".
- * Mise à jour : Intègre la composition du jury (Noms et Langues) dans l'en-tête, 
- * affiche la langue choisie par l'élève et permet la suppression chirurgicale d'un élève.
+ * @why Génère l'affichage complet des colonnes de jurys.
+ * Design : En-tête sur deux lignes pour éviter les chevauchements.
+ * Intègre : Pauses (☕), Priorités (⭐), Séparateurs Drag & Drop, Badges Langues.
  */
 function renderOralVisualDistribution() {
     const container = document.getElementById('oral-visual-distrib');
+    if (!container) return;
     container.innerHTML = '';
 
-    // Sécurité : Vérifie que la répartition existe
-    if (!DB.oralConfig.distribution || Object.keys(DB.oralConfig.distribution).length === 0) {
-        container.innerHTML = `<p style="color:#7f8c8d; text-align:center; width:100%; padding:20px;">Aucune répartition pour le moment. Lancez l'assistant.</p>`;
+    const dist = DB.oralConfig.distribution || {};
+    const pauses = DB.oralConfig.pauses || [];
+
+    // Sécurité : Si aucune répartition n'est générée
+    if (Object.keys(dist).length === 0) {
+        container.innerHTML = `<p style="color:#7f8c8d; text-align:center; width:100%; padding:20px;">Aucune répartition pour le moment. Utilisez l'assistant de génération.</p>`;
         return;
     }
 
-    Object.keys(DB.oralConfig.distribution).forEach(juryName => {
-        const slots = DB.oralConfig.distribution[juryName];
+    // On trie les jurys par nom pour un affichage ordonné
+    Object.keys(dist).sort((a,b) => a.localeCompare(b, undefined, {numeric: true})).forEach(juryName => {
+        const slots = dist[juryName];
         
-        // --- Récupération dynamique de la composition du jury ---
+        // --- 1. Récupération des informations du Jury ---
         const juryTeachers = DB.oralConfig.teachers.filter(t => t.jury === juryName);
-        const teacherNames = juryTeachers.map(t => t.nom).join(', ');
+        // On met les noms en gras et majuscules pour la lisibilité
+        const teacherNames = juryTeachers.map(t => t.nom.toUpperCase()).join(' / ');
         const juryLangs = [...new Set(juryTeachers.map(t => t.langue).filter(Boolean))].join(', ');
-        
-        let subTitleHtml = "";
-        if (teacherNames || juryLangs) {
-            subTitleHtml = `<div style="font-size:0.8rem; font-weight:normal; opacity:0.9; margin-top:5px; border-top:1px solid rgba(255,255,255,0.2); padding-top:5px;">`;
-            if (teacherNames) subTitleHtml += `👥 ${teacherNames}`;
-            if (juryLangs) subTitleHtml += ` <span style="margin-left:8px; color:#f1c40f;">🗣️ ${juryLangs}</span>`;
-            subTitleHtml += `</div>`;
-        }
-        // --------------------------------------------------------
         
         let card = document.createElement('div');
         card.className = 'dd-room-card';
-        card.setAttribute('role', 'region');
-        
-        // RGAA : Mise à jour du label pour l'accessibilité
-        const ariaDesc = `Planning du ${juryName}. Composé de ${teacherNames || 'aucun professeur assigné'}. ${juryLangs ? 'Langues évaluées : ' + juryLangs : ''}`;
-        card.setAttribute('aria-label', ariaDesc);
-        
-        // Injection de l'en-tête
+        card.style.width = "320px"; // Largeur fixe pour éviter les cartes déformées
+        card.style.minWidth = "300px";
+
+        // --- 2. Injection de l'en-tête (Design à 2 lignes) ---
         card.innerHTML = `
-            <div class="dd-room-header" style="background:#34495e; color:white; display:flex; flex-direction:column; padding:10px;">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:15px;">
-                    <span style="font-weight:bold; font-size:1.1rem; word-break:break-word; line-height:1.2;">🧑‍⚖️ Jury ${juryName}</span>
-                    <span style="font-size:0.75rem; background:rgba(255,255,255,0.2); padding:3px 8px; border-radius:12px; white-space:nowrap; margin-top:2px;">${slots.length} passages</span>
+            <div class="dd-room-header" style="background:#2c3e50; color:white; padding:12px; border-radius:8px 8px 0 0;">
+                <div style="display:flex; justify-content:center; align-items:center; gap:12px; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">
+                    <span style="font-weight:bold; font-size:1.1rem;">🧑‍⚖️ JURY ${juryName}</span>
+                    <span style="font-size:0.75rem; background:#3498db; color:white; padding:2px 10px; border-radius:12px; white-space:nowrap;">
+                        ${slots.length} passages
+                    </span>
                 </div>
-                ${subTitleHtml}
+                
+                <div style="text-align:center;">
+                    <div style="font-size:0.85rem; font-weight:500; color:#ecf0f1; line-height:1.2; word-break:break-word;">
+                        ${teacherNames || 'Aucun prof assigné'}
+                    </div>
+                    ${juryLangs ? `
+                        <div style="margin-top:5px;">
+                            <span style="font-size:0.7rem; background:#e67e22; color:white; padding:1px 6px; border-radius:4px; text-transform:uppercase; font-weight:bold;">
+                                🗣️ ${juryLangs}
+                            </span>
+                        </div>
+                    ` : ''}
+                </div>
             </div>
         `;
         
@@ -16266,48 +16446,57 @@ function renderOralVisualDistribution() {
         body.style.padding = "10px";
         body.style.backgroundColor = "#f8f9fa";
 
-        // Fonction Helper pour créer un séparateur (Zone d'insertion du Drag & Drop)
+        // Helper pour créer les séparateurs bleus (Drag & Drop)
         const createSeparator = (insertIndex) => {
             let sep = document.createElement('div');
             sep.className = 'inter-slot-separator';
             sep.setAttribute('data-jury', juryName);
             sep.setAttribute('data-insert-index', insertIndex);
-            sep.setAttribute('aria-label', `Insérer avant le passage ${insertIndex}`);
-            sep.style.cssText = "height: 8px; margin: -4px 0; border-radius: 4px; transition: all 0.2s ease; z-index: 10; position: relative;";
-            
-            sep.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.currentTarget.style.backgroundColor = "#3498db";
-                e.currentTarget.style.height = "25px";
+            sep.style.cssText = "height: 8px; margin: -4px 0; border-radius: 4px; transition: all 0.2s ease; position: relative; z-index:10;";
+            sep.addEventListener('dragover', (e) => { 
+                e.preventDefault(); 
+                e.currentTarget.style.backgroundColor = "#3498db"; 
+                e.currentTarget.style.height = "25px"; 
             });
-            sep.addEventListener('dragleave', (e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.height = "8px";
+            sep.addEventListener('dragleave', (e) => { 
+                e.currentTarget.style.backgroundColor = "transparent"; 
+                e.currentTarget.style.height = "8px"; 
             });
             sep.addEventListener('drop', handleOralDrop);
             return sep;
         };
 
-        // Zone d'insertion TOUT EN HAUT (Index 0)
+        // Zone d'insertion initiale (Index 0)
         body.appendChild(createSeparator(0));
 
         slots.forEach((slot, index) => {
-            let slotDiv = document.createElement('div');
-            slotDiv.style.border = "1px solid #ccc";
-            slotDiv.style.borderRadius = "5px";
-            slotDiv.style.marginBottom = "8px";
-            slotDiv.style.backgroundColor = "white";
-            slotDiv.style.overflow = "hidden";
+            
+            // --- 3. GESTION VISUELLE DES PAUSES ---
+            const pauseHere = pauses.find(p => p.end === slot.startTime);
+            if (pauseHere) {
+                let pDiv = document.createElement('div');
+                pDiv.style.cssText = "background:#f1f2f6; border:2px dashed #bdc3c7; border-radius:5px; padding:8px; margin-bottom:8px; display:flex; align-items:center; color:#7f8c8d; font-size:0.85rem;";
+                pDiv.innerHTML = `
+                    <span style="font-size:1.2rem; margin-right:10px;">☕</span> 
+                    <div style="flex-grow:1;">
+                        <strong>${pauseHere.label || 'PAUSE'}</strong><br>
+                        <small>${pauseHere.start} - ${pauseHere.end}</small>
+                    </div>
+                `;
+                body.appendChild(pDiv);
+            }
 
-            // En-tête du créneau
+            // --- 4. RENDU DU CRÉNEAU ÉLÈVE (SLOT) ---
+            let slotDiv = document.createElement('div');
+            slotDiv.style.cssText = "border: 1px solid #ccc; border-radius: 5px; margin-bottom: 8px; background: white; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);";
+            
             slotDiv.innerHTML = `
                 <div style="background:#e9ecef; padding:5px; font-size:0.85rem; font-weight:bold; border-bottom:1px solid #ccc; display:flex; justify-content:space-between;">
                     <span>⏱️ ${slot.startTime} - ${slot.endTime}</span>
-                    <span style="color:#7f8c8d; font-size:0.75rem;">${slot.type === 'group' ? '👥 Groupe' : '👤 Indiv.'} | ${slot.theme}</span>
+                    <span style="color:#7f8c8d; font-size:0.75rem;">${slot.type === 'group' ? '👥 Groupe' : '👤 Indiv.'}</span>
                 </div>
             `;
 
-            // Zone de dépôt DANS le créneau (Fusion/Groupe)
             let dropZone = document.createElement('div');
             dropZone.style.minHeight = "35px";
             dropZone.style.padding = "5px";
@@ -16318,51 +16507,46 @@ function renderOralVisualDistribution() {
             dropZone.addEventListener('dragleave', (e) => { e.currentTarget.style.backgroundColor = "transparent"; });
             dropZone.addEventListener('drop', handleOralDrop);
 
-            // --- MISE À JOUR : Création des candidats avec Langue et Bouton de Suppression ---
+            // Rendu de chaque élève à l'intérieur du créneau
             slot.students.forEach((student, studentIndex) => {
                 let stDiv = document.createElement('div');
                 stDiv.className = 'dd-student';
                 stDiv.draggable = true;
                 
-                // Rendu conditionnel du badge de langue
-                const langueBadge = student.langue ? 
-                    `<span class="badge" style="background:#e67e22; color:white; font-size:0.75rem; padding:2px 6px; margin-left:8px; border-radius:4px;" aria-label="Langue vivante choisie : ${student.langue}">🌍 ${student.langue}</span>` 
-                    : "";
+                const langueBadge = student.langue ? `<span style="font-size:0.65rem; background:#95a5a6; color:white; padding:1px 4px; border-radius:3px; margin-left:4px;">${student.langue}</span>` : "";
+                const priorityStar = student.isPriority ? `<span style="color: #f1c40f; margin-right: 5px; font-size:1.1rem;" title="Élève Prioritaire">⭐</span>` : "";
 
                 stDiv.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-                        <div style="flex-grow:1;">
-                            <strong>${student.nom.toUpperCase()}</strong> ${student.prenom}
+                        <div style="flex-grow:1; display:flex; align-items:center; font-size:0.9rem; overflow:hidden;">
+                            ${priorityStar}
+                            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                <strong>${student.nom.toUpperCase()}</strong>&nbsp;${student.prenom} 
+                            </span>
                             ${langueBadge}
                         </div>
-                        <button class="btn btn-sm" 
-                                style="background:transparent; border:none; cursor:pointer; font-size:1rem; padding:0 5px;" 
-                                onclick="removeStudentFromSlot('${juryName}', ${index}, ${studentIndex})" 
-                                aria-label="Retirer ${student.nom} ${student.prenom} de la répartition" 
-                                title="Retirer cet élève">
-                            ❌
-                        </button>
+                        <button style="background:transparent; border:none; cursor:pointer; color:#e74c3c; font-weight:bold; padding:0 5px;" 
+                                onclick="removeStudentFromSlot('${juryName}', ${index}, ${studentIndex})"
+                                title="Retirer l'élève">❌</button>
                     </div>
                 `;
                 
-                // L'événement dragstart doit cibler l'élément parent (stDiv) pour ne pas être perturbé par le clic sur le bouton
                 stDiv.addEventListener('dragstart', (e) => {
-                    // On empêche le drag si on clique spécifiquement sur le bouton de suppression
-                    if(e.target.tagName === 'BUTTON') {
-                        e.preventDefault();
-                        return;
-                    }
-                    e.dataTransfer.setData('text/plain', JSON.stringify({ juryName: juryName, slotIndex: index, studentId: student.id }));
+                    if(e.target.tagName === 'BUTTON') return e.preventDefault();
+                    e.dataTransfer.setData('text/plain', JSON.stringify({ 
+                        juryName: juryName, 
+                        slotIndex: index, 
+                        studentId: student.id 
+                    }));
                 });
                 
                 dropZone.appendChild(stDiv);
             });
-            // --------------------------------------------------------------------------------
 
             slotDiv.appendChild(dropZone);
             body.appendChild(slotDiv);
             
-            // Zone d'insertion EN DESSOUS de ce créneau
+            // Zone d'insertion après chaque créneau
             body.appendChild(createSeparator(index + 1));
         });
 
@@ -16372,19 +16556,22 @@ function renderOralVisualDistribution() {
 }
 
 /**
- * @why Gère le routage du Dépôt (Drop) : soit création d'un nouveau créneau (Insertion), 
- * soit ajout à un créneau existant (Fusion). Applique ensuite le recalcul temporel.
+ * @why Gère le routage du Dépôt (Drop) avec sécurité ANTI-PAUSE.
+ * Empêche la fusion d'un élève sur un créneau de pause.
  */
 function handleOralDrop(e) {
     e.preventDefault();
     e.currentTarget.style.backgroundColor = "transparent";
-    e.currentTarget.style.height = e.currentTarget.className === 'inter-slot-separator' ? "8px" : "";
+    
+    // Reset style pour les séparateurs
+    if (e.currentTarget.className === 'inter-slot-separator') {
+        e.currentTarget.style.height = "8px";
+    }
     
     try {
         const data = JSON.parse(e.dataTransfer.getData('text/plain'));
         const targetJury = e.currentTarget.getAttribute('data-jury');
         const isInsertion = e.currentTarget.hasAttribute('data-insert-index');
-
         const sourceJury = data.juryName;
         const sourceSlotIndex = data.slotIndex;
         const studentId = data.studentId;
@@ -16394,23 +16581,35 @@ function handleOralDrop(e) {
         const studentIndex = sourceSlot.students.findIndex(s => s.id === studentId);
         if (studentIndex === -1) return;
 
+        // --- BARRIÈRE DE SÉCURITÉ : FUSION SUR PAUSE ---
+        if (!isInsertion) {
+            const targetSlotIndex = parseInt(e.currentTarget.getAttribute('data-slot-index'));
+            const targetSlot = DB.oralConfig.distribution[targetJury][targetSlotIndex];
+            
+            // Si le créneau cible est une pause, on annule tout
+            if (targetSlot && (targetSlot.isPause || targetSlot.type === 'pause')) {
+                alert("⚠️ Action impossible : Vous ne pouvez pas ajouter un élève sur un créneau de pause.");
+                return;
+            }
+        }
+
+        // 2. Déplacement effectif (on ne retire l'élève qu'après avoir validé la cible)
         const [studentToMove] = sourceSlot.students.splice(studentIndex, 1);
 
-        // 2. Nettoyage de la source (Si le créneau source est vide, on le supprime)
+        // Nettoyage de la source
         let sourceSlotRemoved = false;
         if (sourceSlot.students.length === 0) {
             DB.oralConfig.distribution[sourceJury].splice(sourceSlotIndex, 1);
             sourceSlotRemoved = true;
         } else if (sourceSlot.students.length === 1) {
-            sourceSlot.type = "indiv"; // S'il ne reste qu'un élève, le groupe redevient individuel
+            sourceSlot.type = "indiv";
         }
 
-        // 3. Routage de l'action selon la zone ciblée
+        // 3. Routage de l'action
         if (isInsertion) {
-            // OPTION B : Création d'un nouveau passage dédié
             let insertIndex = parseInt(e.currentTarget.getAttribute('data-insert-index'));
             
-            // Ajustement de l'index si on a supprimé un créneau source situé juste au-dessus dans le même jury
+            // Ajustement d'index si suppression au-dessus dans le même jury
             if (sourceJury === targetJury && sourceSlotRemoved && sourceSlotIndex < insertIndex) {
                 insertIndex--;
             }
@@ -16420,15 +16619,13 @@ function handleOralDrop(e) {
                 theme: studentToMove.parcours || "Général",
                 langue: studentToMove.langue || null,
                 students: [studentToMove],
-                startTime: "", // Laisse vide, recalculateJuryTimes va s'en charger
+                startTime: "", 
                 endTime: ""
             };
-
             DB.oralConfig.distribution[targetJury].splice(insertIndex, 0, newSlot);
+
         } else {
-            // FUSION : Ajout à un créneau existant
             let targetSlotIndex = parseInt(e.currentTarget.getAttribute('data-slot-index'));
-            // Ajustement si suppression au-dessus
             if (sourceJury === targetJury && sourceSlotRemoved && sourceSlotIndex < targetSlotIndex) {
                 targetSlotIndex--;
             }
@@ -16438,17 +16635,19 @@ function handleOralDrop(e) {
             if (targetSlot.students.length > 1) targetSlot.type = "group";
         }
 
-        // 4. Moteur de recalcul (On recalcule les horaires des jurys impactés)
+        // 4. Moteur de recalcul (Appelle la version optimisée avec gestion des pauses)
         if (typeof recalculateJuryTimes === 'function') {
             recalculateJuryTimes(sourceJury);
-            if (sourceJury !== targetJury) recalculateJuryTimes(targetJury);
+            if (sourceJury !== targetJury) {
+                recalculateJuryTimes(targetJury);
+            }
         }
 
         // 5. Rafraichissement Visuel
         renderOralVisualDistribution();
 
     } catch (error) {
-        console.error("Erreur technique lors du déplacement du candidat :", error);
+        console.error("Erreur technique lors du déplacement :", error);
     }
 }
 
@@ -18608,7 +18807,7 @@ window.exportOralDataVizPDF = function() {
 
 /**
  * @why Génère un document officiel listant la composition des jurys et leurs salles.
- * Crée une jointure à la volée entre les objets 'teachers' et 'rooms' via l'identifiant du jury.
+ * Version corrigée : Récupère la salle directement depuis les données des professeurs (t.salle).
  */
 window.exportOralJurysPDF = function() {
     // 1. Vérifications de sécurité
@@ -18645,8 +18844,7 @@ window.exportOralJurysPDF = function() {
     doc.setFont("helvetica", "normal");
     doc.text(`Session ${sessionYear} - ${schoolName}`, 105, startYOffset + 8, { align: 'center' });
 
-    // 3. Agrégation des données (Jointure Professeurs <-> Salles)
-    // On extrait la liste unique des numéros de jurys attribués
+    // 3. Agrégation des données
     const juriesSet = new Set(
         DB.oralConfig.teachers
             .filter(t => t.jury && t.jury !== "")
@@ -18656,7 +18854,7 @@ window.exportOralJurysPDF = function() {
     const juriesList = [...juriesSet].sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
 
     if (juriesList.length === 0) {
-        return alert("⚠️ Aucun jury n'a encore été constitué (les enseignants n'ont pas de numéro de jury).");
+        return alert("⚠️ Aucun jury n'a encore été constitué.");
     }
 
     const tableBody = juriesList.map(juryId => {
@@ -18664,9 +18862,16 @@ window.exportOralJurysPDF = function() {
         const members = DB.oralConfig.teachers.filter(t => t.jury == juryId);
         const membersFormatted = members.map(t => `• ${t.nom.toUpperCase()} ${t.prenom || ""}`).join('\n');
 
-        // Récupération de la salle (Code défensif pour s'adapter à la structure exacte de DB.oralConfig.rooms)
+        // CORRECTIF : Recherche de la salle sur les membres du jury (prioritaire)
         let roomDisplay = "Non assignée";
-        if (DB.oralConfig.rooms && Array.isArray(DB.oralConfig.rooms)) {
+        
+        // On cherche le premier prof du jury qui a une salle saisie
+        const teacherWithRoom = members.find(t => t.salle && String(t.salle).trim() !== "");
+        
+        if (teacherWithRoom) {
+            roomDisplay = teacherWithRoom.salle;
+        } else if (DB.oralConfig.rooms && Array.isArray(DB.oralConfig.rooms)) {
+            // Fallback : recherche dans le tableau rooms si non trouvé sur le prof
             const room = DB.oralConfig.rooms.find(r => r.jury == juryId);
             if (room) {
                 roomDisplay = room.nom || room.name || room.libelle || `Salle ${room.id}`;
@@ -18691,17 +18896,27 @@ window.exportOralJurysPDF = function() {
         columnStyles: {
             0: { cellWidth: 30, halign: 'center', fontStyle: 'bold', textColor: primaryColor },
             1: { cellWidth: 50, halign: 'center', fontStyle: 'bold' },
-            2: { cellWidth: 'auto' } // S'étend automatiquement pour les noms
+            2: { cellWidth: 'auto' }
         }
     });
 
-    // 5. Sauvegarde sécurisée
+    // 5. Sauvegarde
     const safeName = schoolName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
     doc.save(`Composition_Jurys_Oral_${safeName}_${sessionYear}.pdf`);
 };
 // ==========================================
 // HELPERS (Utilitaires de croisement de données)
 // ==========================================
+
+/**
+ * @why Convertit une date AAAA-MM-JJ en format français JJ/MM/AAAA
+ */
+function formatDateFR(dateStr) {
+    if (!dateStr || dateStr.trim() === "" || dateStr === "Date non définie") return "Date non définie";
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr; // Si déjà formaté ou format inconnu
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
 
 /**
  * @why Trouve les informations de passage d'un élève précis dans la distribution globale.
@@ -18729,6 +18944,7 @@ function getJuryRoomName(juryId) {
 
 /**
  * @why Construit l'en-tête officiel standardisé pour tous les documents.
+ * Correction : Intègre le formatage de la date en français.
  */
 function drawOfficialHeader(doc, title, startY = 15) {
     if (DB.config.logo) {
@@ -18740,7 +18956,11 @@ function drawOfficialHeader(doc, title, startY = 15) {
     }
     const sessionYear = DB.config.year || new Date().getFullYear();
     const schoolName = DB.config.schoolName || "Établissement";
-    const oralDate = DB.oralConfig.general?.date || "Date non définie";
+    
+    // --- MODIFICATION ICI ---
+    const rawDate = DB.oralConfig.general?.date || "";
+    const oralDate = formatDateFR(rawDate);
+    // ------------------------
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
@@ -18752,15 +18972,37 @@ function drawOfficialHeader(doc, title, startY = 15) {
     doc.text(`Session ${sessionYear} - ${schoolName} | Date de l'épreuve : ${oralDate}`, 105, startY + 16, { align: 'center' });
 }
 
-// ==========================================
-// 1. CONVOCATIONS ÉLÈVES (Version Dynamique : Langues & Groupes)
-// ==========================================
+/**
+ * @why Génère les convocations élèves de manière optimisée.
+ * Optimisations : Indexation des passages (Map) et pré-calcul des ressources d'en-tête.
+ */
 window.exportOralConvocEleves = function() {
     if (!window.jspdf) return alert("Librairie jsPDF manquante.");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
     
-    // Tri alphabétique par classe puis par nom
+    // 1. INDEXATION PRÉALABLE (Accélère la recherche de planning)
+    const scheduleMap = {};
+    const dist = DB.oralConfig.distribution || {};
+    Object.entries(dist).forEach(([juryId, slots]) => {
+        slots.forEach(slot => {
+            slot.students.forEach(st => {
+                scheduleMap[st.id] = { 
+                    juryId, 
+                    startTime: slot.startTime, 
+                    endTime: slot.endTime,
+                    slot: slot // référence vers le créneau complet pour les groupes
+                };
+            });
+        });
+    });
+
+    // 2. PRÉ-CALCUL DU FORMATAGE DE DATE
+    // Utilise la fonction formatDateFR définie précédemment
+    const rawDate = DB.oralConfig.general?.date || "";
+    const formattedOralDate = typeof formatDateFR === 'function' ? formatDateFR(rawDate) : rawDate;
+
+    // 3. TRI DES ÉLÈVES
     const students = [...(DB.oralConfig.students || [])].sort((a, b) => {
         const c = (a.classe || "").localeCompare(b.classe || "");
         return c !== 0 ? c : a.nom.localeCompare(b.nom);
@@ -18770,13 +19012,15 @@ window.exportOralConvocEleves = function() {
     let count = 0;
 
     students.forEach(s => {
-        const schedule = getStudentOralSchedule(s.id);
+        // Accès direct via la Map (Gain de performance majeur)
+        const schedule = scheduleMap[s.id];
         if (!schedule) return;
 
         if (!isFirstPage) doc.addPage();
         isFirstPage = false;
         count++;
 
+        // Appel de l'en-tête (qui utilisera la date formatée si vous avez modifié drawOfficialHeader)
         drawOfficialHeader(doc, "CONVOCATION - ÉPREUVE ORALE DNB", 20);
 
         // --- Logique de Civilité ---
@@ -18798,100 +19042,71 @@ window.exportOralConvocEleves = function() {
         doc.text(`Classe : ${s.classe || "N/C"}`, 20, 76);
         doc.text(`Parcours / Thématique : ${s.parcours || "Général"}`, 20, 84);
 
-        // --- Analyse Conditionnelle (Groupe & Langue) ---
-        let isGroup = false;
-        let groupSize = 1;
-        const distJury = DB.oralConfig.distribution[schedule.juryId];
-        
-        if (distJury) {
-            // On cherche le créneau exact pour compter les élèves
-            const slot = distJury.find(sl => sl.startTime === schedule.startTime);
-            if (slot && slot.students.length > 1) {
-                isGroup = true;
-                groupSize = slot.students.length;
-            }
-        }
-        
+        // --- Analyse Groupe & Langue ---
+        const isGroup = schedule.slot && schedule.slot.students.length > 1;
+        const groupSize = isGroup ? schedule.slot.students.length : 1;
         const hasLangue = s.langue && s.langue.trim() !== "";
         
-        // Calcul de la hauteur dynamique du cadre épreuve
-        let extraLines = 0;
-        if (isGroup) extraLines++;
-        if (hasLangue) extraLines++;
-        
-        const baseBoxHeight = 45;
-        const boxHeight = baseBoxHeight + (extraLines * 8); // +8mm par ligne supplémentaire
+        const extraLines = (isGroup ? 1 : 0) + (hasLangue ? 1 : 0);
+        const boxHeight = 45 + (extraLines * 8);
 
-        // --- Cadre Épreuve Dynamique ---
+        // --- Cadre Épreuve ---
         doc.rect(14, 100, 182, boxHeight); 
         doc.setFont("helvetica", "bold");
         doc.text(`DÉTAIL DE LA CONVOCATION`, 20, 110);
-        doc.setFont("helvetica", "normal");
         
         const roomName = getJuryRoomName(schedule.juryId);
+        doc.setFont("helvetica", "normal");
         doc.text(`Vous êtes convoqué(e) à vous présenter devant le :`, 20, 120);
+        
         doc.setFontSize(14);
         doc.setFont("helvetica", "bold");
         doc.text(`JURY ${schedule.juryId} - Salle ${roomName}`, 20, 130);
         doc.text(`Heure de passage : ${schedule.startTime}`, 20, 138);
         
-        // --- Insertion des Mentions Spécifiques ---
+        // --- Détails spécifiques ---
         doc.setFontSize(11);
         doc.setFont("helvetica", "normal");
-        doc.setTextColor(44, 62, 80);
-        
         let detailY = 148;
         if (isGroup) {
-            doc.text(`Modalité de l'épreuve : Passage en groupe (${groupSize} candidats)`, 20, detailY);
+            doc.text(`Modalité : Passage en groupe (${groupSize} candidats)`, 20, detailY);
             detailY += 8;
         }
         if (hasLangue) {
             doc.text(`Spécificité linguistique : Présentation en ${s.langue.trim()}`, 20, detailY);
         }
 
-        // --- Mentions obligatoires ---
-        const mentionY = 100 + boxHeight + 10; // S'adapte à la hauteur de la boîte
-        doc.setTextColor(0);
+        // --- Mentions et Signatures (Bas de page) ---
+        const mentionY = 100 + boxHeight + 10;
         doc.setFontSize(9);
         doc.setFont("helvetica", "italic");
-        doc.text("Il est rappelé au candidat qu'il doit se présenter 15 minutes avant l'heure de passage", 105, mentionY, { align: 'center' });
-        doc.text("muni(e) de la présente convocation et d'une pièce d'identité en cours de validité.", 105, mentionY + 5, { align: 'center' });
+        doc.text("Se présenter 15 minutes avant l'heure, muni d'une pièce d'identité.", 105, mentionY, { align: 'center' });
         
-        // --- Zone de Signature Officielle ---
-        const signatureY = Math.max(185, mentionY + 20); // Sécurité pour éviter le chevauchement
+        const signatureY = Math.max(185, mentionY + 20);
         const centerX = 150; 
-
-        doc.setTextColor(0);
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "normal");
-        
         const city = DB.config.city || "Saint-Jean-d'Illac"; 
         const today = new Date().toLocaleDateString('fr-FR');
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
         doc.text(`Fait à ${city}, le ${today}`, centerX, signatureY, { align: 'center' });
 
         doc.setFont("helvetica", "bold");
-        const dirCiv = (DB.config.director && DB.config.director.civ) ? DB.config.director.civ : "Le Chef d'Établissement";
-        const dirName = (DB.config.director && DB.config.director.name) ? DB.config.director.name : "";
-        
+        const dirCiv = DB.config.director?.civ || "Le Chef d'Établissement";
+        const dirName = DB.config.director?.name || "";
         doc.text(dirCiv, centerX, signatureY + 6, { align: 'center' });
-        if (dirName) {
-            doc.text(dirName, centerX, signatureY + 12, { align: 'center' });
-        }
+        if (dirName) doc.text(dirName, centerX, signatureY + 12, { align: 'center' });
 
+        // Image Signature
         if (DB.config.signature) {
             try {
-                const imgProps = doc.getImageProperties(DB.config.signature);
-                const ratio = imgProps.width / imgProps.height;
-                const h = 20; 
-                const w = h * ratio; 
-                doc.addImage(DB.config.signature, 'PNG', centerX - (w / 2), signatureY + 16, w, h, undefined, 'FAST');
-            } catch (e) {
-                console.error("Erreur signature :", e);
-            }
+                const img = DB.config.signature;
+                doc.addImage(img, 'PNG', centerX - 15, signatureY + 16, 30, 15, undefined, 'FAST');
+            } catch (e) {}
         }
     });
 
-    if (count === 0) return alert("Aucun élève n'est encore réparti dans un jury.");
+    if (count === 0) return alert("Aucun élève planifié.");
     doc.save(`Convocations_Eleves_Oral.pdf`);
 };
 
@@ -19038,34 +19253,58 @@ window.exportOralPochettesEleves = function() {
     doc.save(`Pochettes_Convocations_Oral_${safeName}_${year}.pdf`);
 };
 
-// ==========================================
-// 3. CONVOCATIONS PROFESSEURS (Version Officielle avec NB et Signature)
-// ==========================================
+/**
+ * @why Génère les convocations professeurs de manière optimisée.
+ * Gain de performance : Indexation des salles et des binômes par Jury.
+ */
 window.exportOralConvocProfs = function() {
     if (!window.jspdf) return alert("Librairie jsPDF manquante.");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
-    const teachers = (DB.oralConfig.teachers || []).filter(t => t.jury);
-    if(teachers.length === 0) return alert("Aucun enseignant n'est affecté à un jury.");
+    const allTeachers = DB.oralConfig.teachers || [];
+    const teachersToConvoque = allTeachers.filter(t => t.jury);
+    
+    if(teachersToConvoque.length === 0) return alert("Aucun enseignant n'est affecté à un jury.");
+
+    // 1. PRÉ-CALCUL (INDEXATION)
+    // On crée un dictionnaire des salles et des membres par Jury pour éviter de filtrer 50 fois
+    const juryDataMap = {};
+    allTeachers.forEach(t => {
+        if (!t.jury) return;
+        if (!juryDataMap[t.jury]) {
+            juryDataMap[t.jury] = { room: "Non assignée", members: [] };
+        }
+        // On stocke le nom du membre
+        juryDataMap[t.jury].members.push(`${t.nom} ${t.prenom || ""}`);
+        // Si le prof a une salle, on l'affecte au jury dans la Map
+        if (t.salle && t.salle.trim() !== "") {
+            juryDataMap[t.jury].room = t.salle;
+        }
+    });
 
     let isFirstPage = true;
 
-    teachers.forEach(t => {
+    teachersToConvoque.forEach(t => {
         if (!isFirstPage) doc.addPage();
         isFirstPage = false;
 
+        // Appel de l'en-tête (Date formatée automatiquement si drawOfficialHeader est modifié)
         drawOfficialHeader(doc, "CONVOCATION JURY - ÉPREUVE ORALE", 20);
 
         // --- Informations Enseignant ---
+        const juryInfo = juryDataMap[t.jury];
+        
         doc.setFontSize(12);
         doc.setFont("helvetica", "bold");
         doc.text(`Enseignant(e) : ${t.nom.toUpperCase()} ${t.prenom || ""}`, 14, 50);
+        doc.text(`Affectation : JURY ${t.jury} - Salle ${juryInfo.room}`, 14, 60);
         
-        const roomName = getJuryRoomName(t.jury);
-        doc.text(`Affectation : JURY ${t.jury} - Salle ${roomName}`, 14, 60);
-        
-        const colleagues = teachers.filter(c => c.jury === t.jury && c.id !== t.id).map(c => `${c.nom} ${c.prenom || ""}`).join(', ');
+        // Co-évaluateurs : on filtre soi-même de la liste pré-calculée
+        const colleagues = juryInfo.members
+            .filter(m => m !== `${t.nom} ${t.prenom || ""}`)
+            .join(', ');
+
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.text(`Co-évaluateur(s) : ${colleagues || "Aucun"}`, 14, 68);
@@ -19076,7 +19315,7 @@ window.exportOralConvocProfs = function() {
 
         const tableBody = passages.map(slot => {
             const studentNames = slot.students.map(s => `${s.nom.toUpperCase()} ${s.prenom} (${s.classe || "N/C"})`).join(' & ');
-            const parcours = slot.students[0]?.parcours || "Général";
+            const parcours = slot.students[0]?.parcours || "-";
             return [slot.startTime, studentNames, parcours];
         });
 
@@ -19085,61 +19324,42 @@ window.exportOralConvocProfs = function() {
             head: [['Heure', 'Candidat(s)', 'Parcours / Sujet']],
             body: tableBody,
             theme: 'striped',
-            headStyles: { fillColor: [44, 62, 80] }
+            headStyles: { fillColor: [44, 62, 80] },
+            styles: { fontSize: 9 }
         });
 
-        // --- Calcul dynamique de la position Y après le tableau ---
         let currentY = doc.lastAutoTable.finalY + 15;
+        if (currentY > 230) { doc.addPage(); currentY = 20; }
 
-        // Sécurité : Saut de page si la fin du tableau est trop basse (évite de couper la signature)
-        if (currentY > 230) {
-            doc.addPage();
-            currentY = 20;
-        }
-
-        // --- NOTA BENE (Consignes de présence et de départ) ---
+        // --- NOTA BENE ---
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
-        doc.setTextColor(0);
         doc.text("Important :", 14, currentY);
-
         doc.setFontSize(9);
         doc.setFont("helvetica", "italic");
-        doc.text("La présence des évaluateurs est requise 30 minutes avant le début de la première interrogation.", 14, currentY + 6);
-        doc.text("Il est strictement interdit de quitter le centre d'examen avant d'avoir remis la pochette du jury", 14, currentY + 11);
-        doc.text("au secrétariat et sans l'accord formel du chef de centre.", 14, currentY + 16);
+        doc.text("Présence requise 30 minutes avant le début du premier passage.", 14, currentY + 6);
+        doc.text("Remise obligatoire des livrets d'évaluation au secrétariat avant le départ.", 14, currentY + 11);
 
-        // --- ZONE DE SIGNATURE OFFICIELLE ---
-        const signatureY = currentY + 30; // Espacement aéré sous le Nota Bene
-        const centerX = 150; // Axe de centrage (Tiers droit)
-
-        doc.setTextColor(0);
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "normal");
-        
-        const city = DB.config.city || "Saint-Jean-d'Illac"; 
+        // --- ZONE DE SIGNATURE ---
+        const signatureY = currentY + 30;
+        const centerX = 150;
+        const city = DB.config.city || "Saint-Jean-d'Illac";
         const today = new Date().toLocaleDateString('fr-FR');
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
         doc.text(`Fait à ${city}, le ${today}`, centerX, signatureY, { align: 'center' });
 
+        const dirCiv = DB.config.director?.civ || "Le Chef d'Établissement";
+        const dirName = DB.config.director?.name || "";
         doc.setFont("helvetica", "bold");
-        const dirCiv = (DB.config.director && DB.config.director.civ) ? DB.config.director.civ : "Le Chef d'Établissement";
-        const dirName = (DB.config.director && DB.config.director.name) ? DB.config.director.name : "";
-        
         doc.text(dirCiv, centerX, signatureY + 6, { align: 'center' });
-        if (dirName) {
-            doc.text(dirName, centerX, signatureY + 12, { align: 'center' });
-        }
+        if (dirName) doc.text(dirName, centerX, signatureY + 12, { align: 'center' });
 
         if (DB.config.signature) {
             try {
-                const imgProps = doc.getImageProperties(DB.config.signature);
-                const ratio = imgProps.width / imgProps.height;
-                const h = 20; 
-                const w = h * ratio; 
-                doc.addImage(DB.config.signature, 'PNG', centerX - (w / 2), signatureY + 16, w, h, undefined, 'FAST');
-            } catch (e) {
-                console.error("Erreur lors du traitement de la signature :", e);
-            }
+                doc.addImage(DB.config.signature, 'PNG', centerX - 15, signatureY + 16, 30, 15, undefined, 'FAST');
+            } catch (e) {}
         }
     });
 
@@ -19188,7 +19408,7 @@ window.exportOralParcoursJury = function() {
             dist[juryId].forEach(slot => {
                 slot.students.forEach(s => {
                     // Comptage Parcours
-                    const p = s.parcours || "Général";
+                    const p = s.parcours || "-";
                     parcoursCount[p] = (parcoursCount[p] || 0) + 1;
                     
                     // Comptage Langues (seulement si la donnée existe et n'est pas vide)
@@ -19542,7 +19762,7 @@ window.syncOralDistributionData = function() {
                 
                 if (liveStudent) {
                     // 1. On met à jour les informations du créneau (affichées sur la carte)
-                    passage.theme = liveStudent.parcours || "Général";
+                    passage.theme = liveStudent.parcours || "-";
                     passage.langue = liveStudent.langue ? liveStudent.langue.trim().toUpperCase() : null;
                     
                     // 2. On rafraîchit la référence complète de l'élève à l'intérieur
@@ -19581,6 +19801,92 @@ window.getJuryRoomName = function(juryId) {
         return teacherWithRoom.salle.trim();
     } else {
         return "Non assignée";
+    }
+};
+
+/**
+ * @why Génère un fichier Excel complet de la répartition orale.
+ * Croise les données élèves, créneaux, jurys, salles et professeurs.
+ */
+window.exportOralDistributionExcel = function() {
+    if (typeof XLSX === 'undefined') {
+        return alert("⚠️ La librairie SheetJS (XLSX) n'est pas chargée.");
+    }
+
+    const dist = DB.oralConfig.distribution || {};
+    const teachers = DB.oralConfig.teachers || [];
+    const excelData = [];
+
+    // 1. Pré-calculer les membres et les salles par jury pour gagner en performance
+    const juryMap = {};
+    teachers.forEach(t => {
+        if (!t.jury) return;
+        if (!juryMap[t.jury]) {
+            juryMap[t.jury] = { members: [], room: "Non assignée" };
+        }
+        juryMap[t.jury].members.push(`${t.nom.toUpperCase()} ${t.prenom || ""}`);
+        if (t.salle && t.salle.trim() !== "") {
+            juryMap[t.jury].room = t.salle;
+        }
+    });
+
+    // 2. Parcourir la distribution pour construire les lignes du tableau
+    Object.entries(dist).forEach(([juryId, slots]) => {
+        const infoJury = juryMap[juryId] || { members: [], room: "Non assignée" };
+        const nomsProfs = infoJury.members.join(" / ");
+
+        slots.forEach(slot => {
+            slot.students.forEach(s => {
+                excelData.push({
+                    "Nom": s.nom.toUpperCase(),
+                    "Prénom": s.prenom || "",
+					"Classe": s.classe || "N/C",
+                    "Sexe": s.sexe || "",
+                    "Parcours": s.parcours || "Général",
+                    "Option/Langue": s.langue || "",
+                    "Jury": juryId,
+                    "Salle": infoJury.room,
+                    "Heure Début": slot.startTime,
+                    "Heure Fin": slot.endTime || "",
+                    "Membres du Jury": nomsProfs
+                });
+            });
+        });
+    });
+
+    if (excelData.length === 0) {
+        return alert("⚠️ Aucune donnée à exporter. Vérifiez la répartition.");
+    }
+
+    // 3. Création du classeur Excel
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Répartition Orale");
+
+    // Ajustement automatique de la largeur des colonnes (optionnel mais recommandé)
+    const wscols = [
+        {wch: 10}, {wch: 20}, {wch: 20}, {wch: 5}, {wch: 25}, 
+        {wch: 15}, {wch: 10}, {wch: 15}, {wch: 12}, {wch: 12}, {wch: 50}
+    ];
+    worksheet['!cols'] = wscols;
+
+    // 4. Téléchargement du fichier
+    const sessionYear = DB.config.year || new Date().getFullYear();
+    const schoolName = DB.config.schoolName || "Export";
+    const fileName = `Repartition_Oral_${schoolName}_${sessionYear}.xlsx`;
+    
+    XLSX.writeFile(workbook, fileName);
+};
+
+window.updateJuryTime = function(teacherId, field, value) {
+    const teacher = DB.oralConfig.teachers.find(t => t.id == teacherId);
+    if (teacher) {
+        teacher[field] = value;
+        // Optionnel : si c'est un binôme, on peut synchroniser l'autre membre du jury
+        const binome = DB.oralConfig.teachers.find(t => t.jury === teacher.jury && t.id !== teacherId);
+        if (binome) binome[field] = value;
+        
+        saveDB(); // Sauvegarde locale
     }
 };
 // ----------------------
