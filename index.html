@@ -15732,9 +15732,9 @@ function toggleAllTeachers(isChecked) {
 }
 
 /**
- * @why Récupère les cases cochées et met à jour la base de l'oral selon le choix de l'utilisateur
+ * @why Récupère les cases cochées et met à jour la base de l'oral selon le choix de l'utilisateur.
+ * Injecte automatiquement les horaires par défaut de la configuration générale.
  */
-// Remplacer "function executeTeacherImport(mode)" par :
 function importTeachersToOral(mode) {
     const checkboxes = document.querySelectorAll('.chk-import-prof');
     
@@ -15754,6 +15754,10 @@ function importTeachersToOral(mode) {
         window.oralConfig.teachers = []; 
     }
 
+    // --- RÉCUPÉRATION DES HORAIRES PAR DÉFAUT ---
+    const defaultStart = (window.oralConfig.general && window.oralConfig.general.start) || "08:00";
+    const defaultEnd = (window.oralConfig.general && window.oralConfig.general.end) || "17:00";
+
     // On parcourt les IDs sélectionnés pour les ajouter
     selectedIds.forEach(id => {
         const profDb = DB.teachers.find(p => String(p.id) === String(id));
@@ -15766,9 +15770,11 @@ function importTeachersToOral(mode) {
                     id: profDb.id,
                     nom: profDb.nom || "",
                     prenom: profDb.prenom || "",
-                    matieres: profDb.matieres || "",
-                    dispo: "Journée",
+                    matiere: profDb.matieres || profDb.matiere || "N/C", // Harmonisé
+                    startTime: defaultStart, // Heure de début par défaut
+                    endTime: defaultEnd,     // Heure de fin par défaut
                     langue: "",
+                    jury: "",
                     salle: ""
                 });
             }
@@ -15777,10 +15783,19 @@ function importTeachersToOral(mode) {
         }
     });
 
+    // Fermeture de la modal
     document.getElementById('modal-import-teachers').style.display = 'none';
+
+    // Mise à jour visuelle et sauvegarde
     if (typeof renderOralTeachersTable === 'function') {
         renderOralTeachersTable();
     }
+    
+    if (typeof autoSave === 'function') {
+        autoSave();
+    }
+
+    alert(`${selectedIds.length} professeur(s) traité(s) avec les horaires : ${defaultStart} - ${defaultEnd}`);
 }
 
 /**
@@ -15810,8 +15825,8 @@ function renderOralTeachersTable() {
             tr.style.borderBottom = "1px solid #eee";
             tr.style.backgroundColor = "white";
 
-            const startTime = t.startTime || window.oralConfig.general.start || "08:00";
-            const endTime = t.endTime || "17:00";
+const startTime = t.startTime || (window.oralConfig.general && window.oralConfig.general.start) || "08:00";
+const endTime = t.endTime || (window.oralConfig.general && window.oralConfig.general.end) || "17:00";
 
             // Construction des options du menu langue
             let langOptions = `<option value="">Aucune</option>`;
@@ -15900,7 +15915,7 @@ window.removeOralTeacher = function(id) {
 
 /**
  * @why Ajoute manuellement un professeur directement dans le tableau des jurys de l'oral.
- * Génère un identifiant unique "EXT-..." pour éviter les conflits avec la DB.
+ * Initialise les horaires avec les valeurs par défaut de la configuration générale.
  */
 function addManualTeacher(e) {
     e.preventDefault(); // Empêche la page de se recharger
@@ -15914,13 +15929,19 @@ function addManualTeacher(e) {
     // Création d'un identifiant unique (EXT = Externe)
     const newId = "EXT-" + Date.now();
 
-    // On l'ajoute directement à la configuration de l'oral
+    // --- RÉCUPÉRATION DES HORAIRES PAR DÉFAUT ---
+    // On va chercher dans la config générale, sinon on met des valeurs de secours
+    const defaultStart = (window.oralConfig.general && window.oralConfig.general.start) || "08:00";
+    const defaultEnd = (window.oralConfig.general && window.oralConfig.general.end) || "17:00";
+
+    // On l'ajoute à la configuration de l'oral
     window.oralConfig.teachers.push({
         id: newId,
         nom: nom,
         prenom: prenom,
-        matieres: matiere || "Externe",
-        dispo: "Journée", // Valeur par défaut
+        matiere: matiere || "Externe", // Harmonisé en 'matiere' (sans s) pour correspondre au render
+        startTime: defaultStart,       // Applique l'heure de début par défaut
+        endTime: defaultEnd,           // Applique l'heure de fin par défaut
         langue: "",
         jury: "",
         salle: ""
