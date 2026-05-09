@@ -15884,6 +15884,43 @@ const endTime = t.endTime || (window.oralConfig.general && window.oralConfig.gen
 }
 
 /**
+ * SUPPRESSION D'UN PROFESSEUR DU MODULE ORAL
+ * @why Cette fonction retire un enseignant de la liste des jurys oraux.
+ * Elle ne supprime PAS le professeur de la base de données générale du collège.
+ * @param {string|number} teacherId - L'identifiant unique du professeur.
+ */
+window.deleteOralTeacher = function(teacherId) {
+    // 1. Récupération du professeur pour personnaliser le message de confirmation
+    const teacher = DB.oralConfig.teachers.find(t => String(t.id) === String(teacherId));
+    
+    if (!teacher) {
+        console.error("Professeur introuvable avec l'ID :", teacherId);
+        return;
+    }
+
+    // 2. Sécurité : Demande de confirmation à l'utilisateur
+    const confirmation = confirm(`Voulez-vous vraiment retirer ${teacher.nom.toUpperCase()} ${teacher.prenom} de la liste des jurys ?\n\n(Cette action ne supprimera pas le professeur de la base générale du collège)`);
+
+    if (confirmation) {
+        // 3. Filtrage de la liste pour exclure l'ID supprimé
+        DB.oralConfig.teachers = DB.oralConfig.teachers.filter(t => String(t.id) !== String(teacherId));
+
+        // 4. Mise à jour de l'interface graphique
+        if (typeof renderOralTeachersTable === 'function') {
+            renderOralTeachersTable();
+        }
+
+        // 5. Sauvegarde automatique si la fonction existe
+        if (typeof autoSave === 'function') {
+            autoSave();
+        }
+
+        // Optionnel : Notification console pour le débug
+        console.log(`✅ Professeur ${teacherId} supprimé avec succès du module Oral.`);
+    }
+};
+
+/**
  * @why Mise à jour générique d'un champ et sauvegarde
  */
 function updateTeacherField(id, field, value) {
@@ -19052,32 +19089,39 @@ window.exportOralConvocEleves = function() {
         if (s.sexe === 'F') civilite = "Madame";
         else if (s.sexe === 'M') civilite = "Monsieur";
 
-        // --- CADRE 1 : IDENTITÉ (Hauteur augmentée pour le Sujet) ---
-        doc.setDrawColor(44, 62, 80);
-        doc.setLineWidth(0.5);
-        doc.rect(14, 50, 182, 48); 
-        
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
-        doc.text(`${civilite} ${s.nom.toUpperCase()} ${s.prenom}`, 20, 60);
-        
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(11);
-        doc.text(`Qualité : Candidat(e) scolaire`, 20, 68);
-        doc.text(`Classe : ${s.classe || "N/C"}`, 20, 76);
-        doc.text(`Parcours : ${s.parcours || "Général"}`, 20, 84);
-        
-        // Affichage du sujet en gras
-        doc.setFont("helvetica", "bold");
-        doc.text(`Sujet : ${s.sujet || "Non précisé"}`, 20, 92);
+// --- CADRE 1 : IDENTITÉ & SUJET (Correction dépassement) ---
+doc.setDrawColor(44, 62, 80);
+doc.setLineWidth(0.5);
+// On garde un cadre de 48mm de haut, mais on gère le texte à l'intérieur
+doc.rect(14, 50, 182, 48); 
 
-        // --- ANALYSE GROUPE / LANGUE ---
-        const isGroup = schedule.slot && schedule.slot.students.length > 1;
-        const groupSize = isGroup ? schedule.slot.students.length : 1;
-        const hasLangue = s.langue && s.langue.trim() !== "";
-        
-        const extraLines = (isGroup ? 1 : 0) + (hasLangue ? 1 : 0);
-        const boxHeight = 45 + (extraLines * 8);
+doc.setFontSize(12);
+doc.setFont("helvetica", "bold");
+doc.text(`${civilite} ${s.nom.toUpperCase()} ${s.prenom}`, 20, 60);
+
+doc.setFont("helvetica", "normal");
+doc.setFontSize(11);
+doc.text(`Qualité : Candidat(e) scolaire`, 20, 66);
+doc.text(`Classe : ${s.classe || "N/C"}`, 20, 72);
+
+// GESTION DU SUJET AVEC RETOUR À LA LIGNE AUTOMATIQUE
+doc.setFont("helvetica", "bold");
+doc.text(`Parcours : ${s.parcours || "Général"}`, 20, 80);
+
+const sujetLabel = "Sujet : ";
+const sujetTexte = s.sujet || "Non renseigné";
+doc.text(sujetLabel, 20, 86);
+
+doc.setFont("helvetica", "normal");
+// On définit une largeur max de 160mm pour le texte du sujet
+const sujetLines = doc.splitTextToSize(sujetTexte, 160); 
+// On affiche les lignes découpées
+doc.text(sujetLines, 35, 86); 
+
+// --- CADRE 2 : INFOS PASSAGE ---
+// On s'assure que ce cadre ne bouge pas, car le doc.rect est fixe
+doc.setDrawColor(44, 62, 80);
+doc.rect(14, 105, 182, 35);
 
         // --- CADRE 2 : DÉTAILS ÉPREUVE ---
         doc.rect(14, 105, 182, boxHeight); 
