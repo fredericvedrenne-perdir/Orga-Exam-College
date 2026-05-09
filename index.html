@@ -879,6 +879,10 @@ input:checked + .slider-modern:before { transform: translateX(22px); }
 .indiv-card { border-left: 5px solid #007bff; background: white; }
 .group-card { border-left: 5px solid #6f42c1; background: #f3f0ff; }
 
+/* Style pour l'état "actif" des tuiles */
+    .modal-content .btn-outline { border: 2px solid #3498db; color: #3498db; background: white; }
+    .modal-content .btn-primary.active-tile { background-color: #2c3e50; border: 2px solid #2c3e50; color: white; }
+
 </style>
 </head>
 <body>
@@ -2132,10 +2136,10 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
             <div style="border: 1px solid #ddd; border-radius: 10px; padding: 20px; background: #fff;">
                 <h4 style="margin-top:0; color:var(--secondary); border-bottom:2px solid #3498db; padding-bottom:5px;">📢 Génération des documents officiels pour l'épreuve orale</h4>
                 <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
-                    <button class="btn btn-dark" style="text-align:left;" onclick="exportOralConvocEleves()">📄 Convocations Élèves</button>
+                    <button class="btn btn-dark" style="text-align:left;" onclick="openOralConvocModal()">📄 Convocations Élèves</button>
                     <button class="btn btn-dark" style="text-align:left;" onclick="exportOralPochettesEleves()">📁 Pochettes Convocations (Classes)</button>
-					<button class="btn btn-dark" style="text-align:left;" onclick="exportOralConvocProfs()">📄 Convocations Professeurs</button>
-                    <button class="btn btn-dark" style="text-align:left;" onclick="exportOralParcoursJury()">📁 Liste des Parcours par Jury</button>
+					<button class="btn btn-dark" style="text-align:left;" onclick="openOralProfConvocModal()">📄 Convocations Professeurs</button>
+<button class="btn btn-dark" style="text-align:left;" onclick="document.getElementById('modal-oral-subjects-option').style.display='flex'">📁 Liste des Parcours par Jury</button>
                 </div>
             </div>
 			 
@@ -2152,7 +2156,7 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
             <div style="border: 1px solid #ddd; border-radius: 10px; padding: 20px; background: #fff;">
                 <h4 style="margin-top:0; color:var(--success); border-bottom:2px solid #27ae60; padding-bottom:5px;">✍️ Documents du jury</h4>
                 <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
-                    <button class="btn btn-dark" style="text-align:left;" onclick="exportOralSignLists()" aria-label="Générer les feuilles d'émargement par jury">📝 Feuilles d'émargement par Jury</button>
+                    <button class="btn btn-dark" style="text-align:left;" onclick="openOralSignModal()" aria-label="Générer les feuilles d'émargement par jury">📝 Feuilles d'émargement par Jury</button>
                     <button class="btn btn-dark" style="text-align:left;" onclick="exportOralNotationSheets()" aria-label="Générer les bordereaux de notation">📊 Bordereaux de Notation</button>
                     <!-- Nouveaux boutons d'évaluation -->
                     <button class="btn btn-dark" style="text-align:left;" onclick="exportGrillePDF()" aria-label="Générer une fiche d'évaluation vierge">📄 Fiche d'évaluation (Vierge)</button>
@@ -2964,6 +2968,102 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
     </div>
 </dialog>
 
+<div id="modal-oral-subjects-option" class="modal-overlay" style="display:none; z-index:10005;" role="dialog" aria-modal="true" aria-labelledby="modal-oral-subjects-title">
+    <div class="modal-content" style="max-width: 450px; text-align: center;">
+        <h3 id="modal-oral-subjects-title" style="color: #2c3e50; margin-top: 0;">📁 Détail des sujets</h3>
+        <p style="color: #7f8c8d; margin-bottom: 20px; font-size: 0.95rem;">
+            Souhaitez-vous inclure le détail des sujets et problématiques dans le document généré ?<br>
+            <span style="display:block; margin-top: 8px; font-size: 0.85rem; color: #95a5a6;">
+                (Si vous ne les utilisez pas, choisissez "Non" pour obtenir un document plus léger et lisible).
+            </span>
+        </p>
+        <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
+            <button class="btn btn-secondary" onclick="document.getElementById('modal-oral-subjects-option').style.display='none'" aria-label="Annuler l'export">Annuler</button>
+            
+            <button class="btn btn-danger" onclick="triggerOralParcoursExport(false)" aria-label="Générer sans les sujets">Non, sans les sujets</button>
+            
+            <button class="btn btn-success" onclick="triggerOralParcoursExport(true)" aria-label="Générer avec les sujets">Oui, avec les sujets</button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-oral-convoc-settings" class="modal-overlay" style="display:none; z-index:10006;" role="dialog" aria-modal="true" aria-labelledby="title-convoc-settings">
+    <div class="modal-content" style="max-width: 600px;">
+        <h3 id="title-convoc-settings">⚙️ Paramètres des Convocations</h3>
+        
+        <div style="margin-top: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold;">
+                <input type="checkbox" id="convoc-check-accueil" style="width: 18px; height: 18px;">
+                Afficher une heure de convocation (accueil)
+            </label>
+            
+            <div id="convoc-offset-container" style="margin-top: 10px; padding-left: 28px; display: none;">
+                Se présenter <input type="number" id="convoc-offset-mins" value="15" style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 4px;"> minutes avant l'épreuve.
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <label for="convoc-text-instructions" style="display: block; font-weight: bold; margin-bottom: 8px;">Consignes aux candidats :</label>
+            <textarea id="convoc-text-instructions" style="width: 100%; height: 120px; padding: 10px; border-radius: 4px; border: 1px solid #ccc; font-family: sans-serif; font-size: 0.9rem;" placeholder="Ex: Se présenter muni d'une pièce d'identité et de la présente convocation..."></textarea>
+        </div>
+
+        <div style="display: flex; gap: 15px; justify-content: flex-end; margin-top: 25px;">
+            <button class="btn btn-secondary" onclick="document.getElementById('modal-oral-convoc-settings').style.display='none'">Annuler</button>
+            <button class="btn btn-success" onclick="confirmOralConvocGeneration()">Générer les PDF</button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-oral-prof-settings" class="modal-overlay" style="display:none; z-index:10007;" role="dialog" aria-modal="true" aria-labelledby="title-prof-settings">
+    <div class="modal-content" style="max-width: 600px;">
+        <h3 id="title-prof-settings">⚙️ Consignes pour les Jurys</h3>
+        
+        <p style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
+            Ces informations apparaîtront dans le cadre "Important" au bas de chaque convocation enseignant.
+        </p>
+
+        <div style="margin-top: 10px;">
+            <label for="prof-text-instructions" style="display: block; font-weight: bold; margin-bottom: 8px;">Texte des consignes :</label>
+            <textarea id="prof-text-instructions" style="width: 100%; height: 150px; padding: 10px; border-radius: 4px; border: 1px solid #ccc; font-family: sans-serif; font-size: 0.9rem;" 
+                placeholder="Ex: Présence requise 30 minutes avant..."></textarea>
+        </div>
+
+        <div style="display: flex; gap: 15px; justify-content: flex-end; margin-top: 25px;">
+            <button class="btn btn-secondary" onclick="document.getElementById('modal-oral-prof-settings').style.display='none'">Annuler</button>
+            <button class="btn btn-success" onclick="confirmOralProfConvocGeneration()">💾 Sauvegarder et Générer</button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-oral-sign-settings" class="modal-overlay" style="display:none; z-index:10008;" role="dialog" aria-modal="true" aria-labelledby="title-sign-settings">
+    <div class="modal-content" style="max-width: 500px; text-align: center;">
+        <h3 id="title-sign-settings">📋 Options d'émargement</h3>
+        <p style="margin-bottom: 20px; color: #7f8c8d;">Sélectionnez les informations à faire apparaître sous le nom de l'élève :</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div>
+                <p style="font-weight: bold; margin-bottom: 10px;">Inclure le Parcours ?</p>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="tile-parcours-yes" class="btn btn-outline" onclick="toggleSignTile('parcours', true)" style="flex: 1; padding: 15px;">OUI</button>
+                    <button id="tile-parcours-no" class="btn btn-primary" onclick="toggleSignTile('parcours', false)" style="flex: 1; padding: 15px;">NON</button>
+                </div>
+            </div>
+
+            <div>
+                <p style="font-weight: bold; margin-bottom: 10px;">Inclure le Sujet / Problématique ?</p>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="tile-sujet-yes" class="btn btn-outline" onclick="toggleSignTile('sujet', true)" style="flex: 1; padding: 15px;">OUI</button>
+                    <button id="tile-sujet-no" class="btn btn-primary" onclick="toggleSignTile('sujet', false)" style="flex: 1; padding: 15px;">NON</button>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 15px; justify-content: center; margin-top: 30px;">
+            <button class="btn btn-secondary" onclick="document.getElementById('modal-oral-sign-settings').style.display='none'">Annuler</button>
+            <button class="btn btn-success" onclick="confirmOralSignExport()" style="padding-left: 30px; padding-right: 30px;">Générer</button>
+        </div>
+    </div>
+</div>
 
 <div id="mappingModal" class="modal-overlay" style="display:none;">
     <div class="modal-content" style="max-width: 950px; padding: 0;">
@@ -17547,12 +17647,34 @@ const renderOralDocLogo = (doc) => {
     }
 };
 
+// État local pour la modale
+let signExportOptions = { withParcours: false, withSujet: false };
 
-/**
- * @why Génère les feuilles d'émargement officielles pour chaque jury.
- * Contient une colonne vide très large pour permettre la signature manuscrite des candidats.
- */
-window.exportOralSignLists = function() {
+window.openOralSignModal = function() {
+    document.getElementById('modal-oral-sign-settings').style.display = 'flex';
+    // Reset visuel par défaut
+    toggleSignTile('parcours', false);
+    toggleSignTile('sujet', false);
+};
+
+window.toggleSignTile = function(type, value) {
+    if (type === 'parcours') {
+        signExportOptions.withParcours = value;
+        document.getElementById('tile-parcours-yes').className = value ? 'btn btn-primary active-tile' : 'btn btn-outline';
+        document.getElementById('tile-parcours-no').className = !value ? 'btn btn-primary active-tile' : 'btn btn-outline';
+    } else {
+        signExportOptions.withSujet = value;
+        document.getElementById('tile-sujet-yes').className = value ? 'btn btn-primary active-tile' : 'btn btn-outline';
+        document.getElementById('tile-sujet-no').className = !value ? 'btn btn-primary active-tile' : 'btn btn-outline';
+    }
+};
+
+window.confirmOralSignExport = function() {
+    document.getElementById('modal-oral-sign-settings').style.display = 'none';
+    exportOralSignLists(signExportOptions.withParcours, signExportOptions.withSujet);
+};
+
+window.exportOralSignLists = function(withParcours = false, withSujet = false) {
     if (!DB.oralConfig.distribution || Object.keys(DB.oralConfig.distribution).length === 0) {
         return alert("⚠️ Aucune répartition disponible.");
     }
@@ -17562,7 +17684,7 @@ window.exportOralSignLists = function() {
     const primaryColor = [44, 62, 80];
     let pageCount = 0;
 
-    Object.keys(DB.oralConfig.distribution).forEach(jury => {
+    Object.keys(DB.oralConfig.distribution).sort((a,b) => a.localeCompare(b, undefined, {numeric: true})).forEach(jury => {
         const slots = DB.oralConfig.distribution[jury];
         if (slots.length === 0) return;
 
@@ -17573,27 +17695,34 @@ window.exportOralSignLists = function() {
         const salle = (profs.length > 0 && profs[0].salle) ? profs[0].salle : "Non définie";
 
         // En-tête
-        doc.setFontSize(16);
-        doc.setTextColor(...primaryColor);
-        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16).setTextColor(...primaryColor).setFont("helvetica", "bold");
         doc.text(`Feuille d'Émargement - Jury N°${jury}`, 14, 20);
 
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.setFont("helvetica", "normal");
-        doc.text(`${DB.config.schoolName || "Établissement"} | Salle : ${salle} | Date : ${DB.oralConfig.general.date ? new Date(DB.oralConfig.general.date).toLocaleDateString('fr-FR') : '---'}`, 14, 28);
+        doc.setFontSize(10).setTextColor(100).setFont("helvetica", "normal");
+        const dateStr = DB.oralConfig.general.date ? new Date(DB.oralConfig.general.date).toLocaleDateString('fr-FR') : '---';
+        doc.text(`${DB.config.schoolName || "Établissement"} | Salle : ${salle} | Date : ${dateStr}`, 14, 28);
 
-        // Aplatir les élèves (un élève par ligne, même si passage en groupe)
+        // Construction du corps du tableau
         const body = [];
         slots.forEach(slot => {
             slot.students.forEach((student, index) => {
-                // On affiche l'heure seulement pour le premier élève du groupe visuellement (optionnel, mais plus propre)
                 const timeDisplay = index === 0 ? `${slot.startTime}` : `(Groupe)`;
+                
+                // --- CONSTRUCTION DU NOM AVEC OPTIONS ---
+                let candidateDisplay = `${student.nom.toUpperCase()} ${student.prenom}`;
+                
+                if (withParcours && student.parcours) {
+                    candidateDisplay += `\nParcours : ${student.parcours}`;
+                }
+                if (withSujet && student.sujet) {
+                    candidateDisplay += `\nSujet : ${student.sujet}`;
+                }
+
                 body.push([
                     timeDisplay,
-                    `${student.nom.toUpperCase()} ${student.prenom}`,
+                    candidateDisplay,
                     student.classe,
-                    "" // Colonne Signature vide
+                    "" // Signature
                 ]);
             });
         });
@@ -17604,12 +17733,17 @@ window.exportOralSignLists = function() {
             body: body,
             theme: 'grid',
             headStyles: { fillColor: primaryColor, halign: 'center' },
-            styles: { fontSize: 10, minCellHeight: 12, valign: 'middle' }, // Lignes plus hautes pour signer
+            styles: { 
+                fontSize: 9, 
+                minCellHeight: 14, // Légèrement augmenté pour le confort
+                valign: 'middle',
+                overflow: 'linebreak' // Force le retour à la ligne
+            },
             columnStyles: {
-                0: { halign: 'center', fontStyle: 'bold', cellWidth: 25 },
-                1: { cellWidth: 65 },
+                0: { halign: 'center', fontStyle: 'bold', cellWidth: 20 },
+                1: { cellWidth: 70 }, // Élargi pour accueillir les infos parcours/sujet
                 2: { halign: 'center', cellWidth: 20 },
-                3: { cellWidth: 'auto' } // La signature prend le reste de la place
+                3: { cellWidth: 'auto' }
             }
         });
     });
@@ -19053,16 +19187,69 @@ function drawOfficialHeader(doc, title, startY = 15) {
     doc.text(`Session ${sessionYear} - ${schoolName} | Date de l'épreuve : ${oralDate}`, 105, startY + 16, { align: 'center' });
 }
 
-/**
- * @why Version finale avec gestion du ratio de la signature pour éviter toute déformation.
- * Applique la même logique que celle utilisée pour les convocations des écrits.
+// Logique d'affichage conditionnel du champ minutes
+    document.getElementById('convoc-check-accueil').addEventListener('change', function(e) {
+        document.getElementById('convoc-offset-container').style.display = e.target.checked ? 'block' : 'none';
+    });
+	
+	
+	/**
+ * Ouvre la modale et pré-remplit avec les dernières valeurs sauvegardées
  */
-window.exportOralConvocEleves = function() {
+window.openOralConvocModal = function() {
+    const params = DB.oralConfig.convocParams || { 
+        showArrival: true, 
+        offset: 15, 
+        text: "Le candidat devra se présenter muni d'une pièce d'identité et de la présente convocation. Il est impératif d'arriver au moins 15 minutes avant l'heure de passage indiquée." 
+    };
+    
+    document.getElementById('convoc-check-accueil').checked = params.showArrival;
+    document.getElementById('convoc-offset-mins').value = params.offset;
+    document.getElementById('convoc-text-instructions').value = params.text;
+    document.getElementById('convoc-offset-container').style.display = params.showArrival ? 'block' : 'none';
+    
+    document.getElementById('modal-oral-convoc-settings').style.display = 'flex';
+};
+
+/**
+ * Sauvegarde les paramètres et lance l'export
+ */
+window.confirmOralConvocGeneration = function() {
+    const params = {
+        showArrival: document.getElementById('convoc-check-accueil').checked,
+        offset: parseInt(document.getElementById('convoc-offset-mins').value) || 0,
+        text: document.getElementById('convoc-text-instructions').value
+    };
+    
+    // Persistance dans la base de données locale
+    DB.oralConfig.convocParams = params;
+    if (typeof saveDB === 'function') saveDB(); 
+    
+    document.getElementById('modal-oral-convoc-settings').style.display = 'none';
+    exportOralConvocEleves(params);
+};
+
+/**
+ * Helper : calcule HH:mm - X minutes
+ */
+function getArrivalTime(startTime, offsetMins) {
+    if (!startTime || startTime === "N/C") return "N/C";
+    try {
+        const [h, m] = startTime.split(':').map(Number);
+        const date = new Date();
+        date.setHours(h, m - offsetMins, 0);
+        return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return startTime; }
+}
+
+window.exportOralConvocEleves = function(params) {
     if (!window.jspdf) return alert("Librairie jsPDF manquante.");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
     
-    // 1. INDEXATION DES PASSAGES (Heure corrigée)
+    // Utiliser les params passés ou ceux de la DB par défaut
+    const p = params || DB.oralConfig.convocParams || { showArrival: false, offset: 0, text: "" };
+
     const scheduleMap = {};
     const dist = DB.oralConfig.distribution || {};
     Object.entries(dist).forEach(([juryId, slots]) => {
@@ -19090,14 +19277,13 @@ window.exportOralConvocEleves = function() {
         if (count > 0) doc.addPage();
         count++;
 
-        // En-tête
         if (typeof drawOfficialHeader === 'function') {
             drawOfficialHeader(doc, "CONVOCATION - ÉPREUVE ORALE DNB", 20);
         }
 
         let civilite = s.sexe === 'F' ? "Madame" : (s.sexe === 'M' ? "Monsieur" : "Candidat(e)");
 
-        // --- CADRE 1 : IDENTITÉ & SUJET ---
+        // --- CADRE 1 : IDENTITÉ ---
         doc.setDrawColor(44, 62, 80).setLineWidth(0.5);
         const sujetTexte = s.sujet || "Non renseigné";
         const sujetLines = doc.splitTextToSize(sujetTexte, 155);
@@ -19114,13 +19300,34 @@ window.exportOralConvocEleves = function() {
 
         // --- CADRE 2 : INFOS PASSAGE ---
         const cadre2Y = 50 + cadre1Height + 5; 
-        doc.rect(14, cadre2Y, 182, 35);
+        doc.rect(14, cadre2Y, 182, p.showArrival ? 40 : 30);
         const roomName = (typeof getJuryRoomName === 'function') ? getJuryRoomName(schedule.juryId) : "N/C";
-        doc.setFont("helvetica", "bold").text(`JURY ${schedule.juryId.replace('jury-', '')} - Salle ${roomName}`, 20, cadre2Y + 15);
-        doc.setFontSize(14).text(`Heure de passage : ${schedule.startTime}`, 20, cadre2Y + 25);
+        
+        doc.setFont("helvetica", "bold").setFontSize(11);
+        doc.text(`JURY ${schedule.juryId.replace('jury-', '')} - Salle ${roomName}`, 20, cadre2Y + 10);
+        
+        if (p.showArrival) {
+            const heureAccueil = getArrivalTime(schedule.startTime, p.offset);
+            doc.setFont("helvetica", "bold").setTextColor(231, 76, 60); // Rouge pour attirer l'oeil
+            doc.text(`HEURE DE CONVOCATION : ${heureAccueil}`, 20, cadre2Y + 20);
+            doc.setTextColor(0);
+            doc.setFontSize(14).text(`Heure de passage : ${schedule.startTime}`, 20, cadre2Y + 32);
+        } else {
+            doc.setFontSize(14).text(`Heure de passage : ${schedule.startTime}`, 20, cadre2Y + 22);
+        }
 
-        // --- BLOC SIGNATURE (NON DÉFORMÉ) ---
-        const signatureY = 220;
+        // --- BLOC CONSIGNES ---
+        let finalY = cadre2Y + (p.showArrival ? 45 : 35) + 10;
+        if (p.text) {
+            doc.setFontSize(10).setFont("helvetica", "bold");
+            doc.text("CONSIGNES IMPORTANTES :", 14, finalY);
+            doc.setFont("helvetica", "normal");
+            const instructionLines = doc.splitTextToSize(p.text, 180);
+            doc.text(instructionLines, 14, finalY + 6);
+        }
+
+        // --- BLOC SIGNATURE ---
+        const signatureY = 235;
         const centerX = 150; 
         const city = DB.config.city || "votre ville";
         
@@ -19132,17 +19339,10 @@ window.exportOralConvocEleves = function() {
         doc.setFont("helvetica", "bold").text(dirCiv, centerX, signatureY + 7, { align: 'center' });
         if (dirName) doc.text(dirName, centerX, signatureY + 14, { align: 'center' });
 
-        // LOGIQUE ANTI-DÉFORMATION
         if (DB.config.signature) {
             try {
-                // Largeur souhaitée : 45mm
-                const targetWidth = 45;
-                // On insère l'image avec 'preserveAspectRatio' via la largeur fixe et hauteur auto (0 ou alias)
-                // jsPDF permet de passer 'undefined' en hauteur pour conserver le ratio si l'image est bien chargée
-                doc.addImage(DB.config.signature, 'PNG', centerX - (targetWidth / 2), signatureY + 18, targetWidth, 0);
-            } catch (e) {
-                console.error("Erreur signature :", e);
-            }
+                doc.addImage(DB.config.signature, 'PNG', centerX - 22.5, signatureY + 18, 45, 0);
+            } catch (e) { console.error(e); }
         }
     });
 
@@ -19293,30 +19493,56 @@ window.exportOralPochettesEleves = function() {
 };
 
 /**
- * @why Génère les convocations professeurs de manière optimisée.
- * Gain de performance : Indexation des salles et des binômes par Jury.
+ * Ouvre la modale des profs avec les données sauvegardées
  */
-window.exportOralConvocProfs = function() {
+window.openOralProfConvocModal = function() {
+    const defaultText = "Présence requise 30 minutes avant le début du premier passage.\nRemise obligatoire des livrets d'évaluation au secrétariat avant le départ.";
+    
+    // Récupération des paramètres sauvegardés ou texte par défaut
+    const params = DB.oralConfig.profConvocParams || { text: defaultText };
+    
+    document.getElementById('prof-text-instructions').value = params.text;
+    document.getElementById('modal-oral-prof-settings').style.display = 'flex';
+};
+
+/**
+ * Enregistre les modifications et lance l'export
+ */
+window.confirmOralProfConvocGeneration = function() {
+    const text = document.getElementById('prof-text-instructions').value;
+    
+    // Sauvegarde en DB
+    DB.oralConfig.profConvocParams = { text: text };
+    if (typeof saveDB === 'function') saveDB(); 
+    
+    document.getElementById('modal-oral-prof-settings').style.display = 'none';
+    
+    // Lancement de l'export avec les nouvelles données
+    exportOralConvocProfs({ text: text });
+};
+
+window.exportOralConvocProfs = function(params) {
     if (!window.jspdf) return alert("Librairie jsPDF manquante.");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
+
+    // On récupère les consignes passées en paramètre ou en DB
+    const p = params || DB.oralConfig.profConvocParams || { 
+        text: "Présence requise 30 minutes avant le début du premier passage.\nRemise obligatoire des livrets d'évaluation au secrétariat avant le départ." 
+    };
 
     const allTeachers = DB.oralConfig.teachers || [];
     const teachersToConvoque = allTeachers.filter(t => t.jury);
     
     if(teachersToConvoque.length === 0) return alert("Aucun enseignant n'est affecté à un jury.");
 
-    // 1. PRÉ-CALCUL (INDEXATION)
-    // On crée un dictionnaire des salles et des membres par Jury pour éviter de filtrer 50 fois
     const juryDataMap = {};
     allTeachers.forEach(t => {
         if (!t.jury) return;
         if (!juryDataMap[t.jury]) {
             juryDataMap[t.jury] = { room: "Non assignée", members: [] };
         }
-        // On stocke le nom du membre
         juryDataMap[t.jury].members.push(`${t.nom} ${t.prenom || ""}`);
-        // Si le prof a une salle, on l'affecte au jury dans la Map
         if (t.salle && t.salle.trim() !== "") {
             juryDataMap[t.jury].room = t.salle;
         }
@@ -19328,27 +19554,21 @@ window.exportOralConvocProfs = function() {
         if (!isFirstPage) doc.addPage();
         isFirstPage = false;
 
-        // Appel de l'en-tête (Date formatée automatiquement si drawOfficialHeader est modifié)
         drawOfficialHeader(doc, "CONVOCATION JURY - ÉPREUVE ORALE", 20);
 
-        // --- Informations Enseignant ---
         const juryInfo = juryDataMap[t.jury];
         
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12).setFont("helvetica", "bold");
         doc.text(`Enseignant(e) : ${t.nom.toUpperCase()} ${t.prenom || ""}`, 14, 50);
         doc.text(`Affectation : JURY ${t.jury} - Salle ${juryInfo.room}`, 14, 60);
         
-        // Co-évaluateurs : on filtre soi-même de la liste pré-calculée
         const colleagues = juryInfo.members
             .filter(m => m !== `${t.nom} ${t.prenom || ""}`)
             .join(', ');
 
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10).setFont("helvetica", "normal");
         doc.text(`Co-évaluateur(s) : ${colleagues || "Aucun"}`, 14, 68);
 
-        // --- Planning du Jury ---
         const passages = DB.oralConfig.distribution[t.jury] || [];
         doc.text(`Votre planning d'interrogation :`, 14, 85);
 
@@ -19367,20 +19587,20 @@ window.exportOralConvocProfs = function() {
             styles: { fontSize: 9 }
         });
 
+        // --- BLOC NOTA BENE DYNAMIQUE ---
         let currentY = doc.lastAutoTable.finalY + 15;
-        if (currentY > 230) { doc.addPage(); currentY = 20; }
+        if (currentY > 210) { doc.addPage(); currentY = 25; }
 
-        // --- NOTA BENE ---
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10).setFont("helvetica", "bold");
         doc.text("Important :", 14, currentY);
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "italic");
-        doc.text("Présence requise 30 minutes avant le début du premier passage.", 14, currentY + 6);
-        doc.text("Remise obligatoire des livrets d'évaluation au secrétariat avant le départ.", 14, currentY + 11);
+        
+        doc.setFontSize(9).setFont("helvetica", "italic");
+        // splitTextToSize permet de gérer les retours à la ligne automatiques si le texte est long
+        const instructionLines = doc.splitTextToSize(p.text, 180);
+        doc.text(instructionLines, 14, currentY + 6);
 
-        // --- BLOC SIGNATURE (NON DÉFORMÉ) ---
-        const signatureY = 220;
+        // --- BLOC SIGNATURE ---
+        const signatureY = 235;
         const centerX = 150; 
         const city = DB.config.city || "votre ville";
         
@@ -19392,17 +19612,10 @@ window.exportOralConvocProfs = function() {
         doc.setFont("helvetica", "bold").text(dirCiv, centerX, signatureY + 7, { align: 'center' });
         if (dirName) doc.text(dirName, centerX, signatureY + 14, { align: 'center' });
 
-        // LOGIQUE ANTI-DÉFORMATION
         if (DB.config.signature) {
             try {
-                // Largeur souhaitée : 45mm
-                const targetWidth = 45;
-                // On insère l'image avec 'preserveAspectRatio' via la largeur fixe et hauteur auto (0 ou alias)
-                // jsPDF permet de passer 'undefined' en hauteur pour conserver le ratio si l'image est bien chargée
-                doc.addImage(DB.config.signature, 'PNG', centerX - (targetWidth / 2), signatureY + 18, targetWidth, 0);
-            } catch (e) {
-                console.error("Erreur signature :", e);
-            }
+                doc.addImage(DB.config.signature, 'PNG', centerX - 22.5, signatureY + 18, 45, 0);
+            } catch (e) { console.error(e); }
         }
     });
 
@@ -19413,10 +19626,26 @@ window.exportOralConvocProfs = function() {
     doc.save(`Convocations_Profs_Oral_${safeName}_${sessionYear}.pdf`);
 };
 
+/**
+ * Intercepte le choix depuis la modale et lance la génération.
+ * @param {boolean} withSubjects - Détermine si le script doit boucler sur les sujets.
+ */
+window.triggerOralParcoursExport = function(withSubjects) {
+    // 1. Fermeture de la modale proprement
+    document.getElementById('modal-oral-subjects-option').style.display = 'none';
+    
+    // 2. Appel à ta fonction principale de génération avec le paramètre de configuration
+    exportOralParcoursJury(withSubjects);
+};
+
 // ==========================================
 // 4. LISTE SYNTHÉTIQUE (PARCOURS, SUJETS & LANGUES PAR JURY)
 // ==========================================
-window.exportOralParcoursJury = function() {
+/**
+ * Exporte la liste des parcours par jury en PDF.
+ * @param {boolean} withSubjects - Si true, inclut le détail des sujets par parcours. Défaut: true.
+ */
+window.exportOralParcoursJury = function(withSubjects = true) {
     if (!window.jspdf) return alert("Librairie jsPDF manquante.");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -19476,13 +19705,15 @@ window.exportOralParcoursJury = function() {
                 { content: dataTree[pName].total.toString(), styles: { fontStyle: 'bold', fillColor: [245, 245, 245] } }
             ]);
 
-            // Lignes Enfants (Les Sujets sous ce parcours)
-            Object.keys(dataTree[pName].sujets).sort().forEach(sujName => {
-                parcoursBody.push([
-                    `   • ${sujName}`, 
-                    dataTree[pName].sujets[sujName].toString()
-                ]);
-            });
+            // Lignes Enfants (Les Sujets sous ce parcours) conditionnées par le paramètre withSubjects
+            if (withSubjects) {
+                Object.keys(dataTree[pName].sujets).sort().forEach(sujName => {
+                    parcoursBody.push([
+                        `   • ${sujName}`, 
+                        dataTree[pName].sujets[sujName].toString()
+                    ]);
+                });
+            }
         });
 
         if (parcoursBody.length === 0) parcoursBody.push(["Aucun candidat affecté", "-"]);
@@ -19490,7 +19721,8 @@ window.exportOralParcoursJury = function() {
         // Rendu du Tableau des Parcours & Sujets
         doc.autoTable({
             startY: currentY + 9,
-            head: [['Parcours / Sujets précis', 'Total']],
+            // Le titre de la colonne s'adapte au choix de l'utilisateur
+            head: [[withSubjects ? 'Parcours / Sujets précis' : 'Parcours', 'Total']],
             body: parcoursBody,
             theme: 'grid',
             styles: { fontSize: 9, padding: 3 },
@@ -19535,7 +19767,9 @@ window.exportOralParcoursJury = function() {
     const schoolName = DB.config.schoolName || "Etablissement";
     const safeName = schoolName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, '_');
     
-    doc.save(`Récapitulatif_Jurys_Sujets_${safeName}_${sessionYear}.pdf`);
+    // Le nom du fichier indique si c'est une version détaillée ou simplifiée (optionnel, mais bon pour l'UX)
+    const fileNameSuffix = withSubjects ? "Détaillé" : "Simplifié";
+    doc.save(`Récapitulatif_Jurys_Parcours_${fileNameSuffix}_${safeName}_${sessionYear}.pdf`);
 };
 
 // ============================================================================
