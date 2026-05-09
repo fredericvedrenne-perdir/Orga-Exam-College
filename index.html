@@ -17817,57 +17817,42 @@ function drawEvaluationSheet(doc, data) {
 
 /**
  * @why Fonction maîtresse pour le publipostage des fiches d'évaluation.
- * Elle itère sur la répartition pour générer un PDF contenant toutes les fiches pré-remplies.
- * Adaptation : Intègre désormais la détection dynamique de la langue étrangère pour 
- * l'ajustement chirurgical de la grille de notation.
+ * Ajoute la récupération du "sujet" pour chaque élève.
  */
 window.exportPrefilledEvalSheets = function() {
-    // 1. Vérification de la présence des données de répartition
     if (!DB.oralConfig.distribution || Object.keys(DB.oralConfig.distribution).length === 0) {
         return alert("⚠️ Aucune répartition disponible. Veuillez d'abord répartir les élèves.");
     }
 
     const { jsPDF } = window.jspdf;
-    // Format A4 Portrait standard pour les fiches d'examen
     const doc = new jsPDF('p', 'mm', 'a4');
     let pageCount = 0;
 
-    // Récupération de la date globale de l'épreuve (formatage FR)
     const dateExam = DB.oralConfig.general?.date 
         ? new Date(DB.oralConfig.general.date).toLocaleDateString('fr-FR') 
         : 'Non définie';
 
-    // 2. Itération sur les Jurys (Tri alphabétique pour faciliter le tri papier post-impression)
     Object.keys(DB.oralConfig.distribution).sort((a,b) => a.localeCompare(b, undefined, {numeric: true})).forEach(juryName => {
         const slots = DB.oralConfig.distribution[juryName];
 
-        // 3. Itération sur les créneaux horaires
         slots.forEach(slot => {
-            // 4. Itération sur les élèves (gestion native des candidats individuels ou en groupe)
             slot.students.forEach(student => {
                 if (pageCount > 0) doc.addPage();
                 
-                // Détection de la spécificité linguistique
                 const langueCandidat = (student.langue && student.langue.trim() !== "") ? student.langue.trim() : null;
 
-                // Préparation du package de données pour le moteur de rendu
                 const evalData = {
                     nom: student.nom.toUpperCase(),
                     prenom: student.prenom,
                     classe: student.classe || "N/C",
-                    parcours: slot.theme || student.parcours || "Non précisé",
+                    parcours: student.parcours || "Non précisé",
+                    sujet: student.sujet || "Non précisé", // RÉCUPÉRATION DU SUJET
                     jury: juryName,
                     horaire: `${dateExam} à ${slot.startTime}`,
-                    langue: langueCandidat, // Transmis pour l'adaptation de la grille
+                    langue: langueCandidat,
                     isGroup: slot.students.length > 1
                 };
 
-                /**
-                 * Appel de la logique de dessin (internalRenderEvalDesign).
-                 * Cette fonction doit maintenant utiliser evalData.langue pour :
-                 * - Afficher la mention de la langue dans l'en-tête.
-                 * - Ajouter/Supprimer la ligne de bonus LVE dans le tableau autoTable.
-                 */
                 internalRenderEvalDesign(doc, evalData);
                 pageCount++;
             });
@@ -17877,22 +17862,22 @@ window.exportPrefilledEvalSheets = function() {
     const session = DB.config.year || new Date().getFullYear();
     const schoolName = DB.config.schoolName ? DB.config.schoolName.replace(/[^a-z0-9]/gi, '_') : "Etablissement";
     
-    // Exportation avec nom de fichier explicite pour le secrétariat
     doc.save(`Fiches_Evaluation_Oral_${schoolName}_${session}.pdf`);
 };
 
 /**
- * @why Logique de dessin mise à jour pour les fiches d'évaluation.
- * MODIFICATIONS : 
- * 1. Affichage de la langue dans l'en-tête uniquement si définie.
- * 2. Section Bonus LVE strictement conditionnée à la présence d'une langue chez l'élève.
- * 3. Maintien du design épuré (sans Classe ni Horaire).
+ * @why Logique de dessin de la fiche d'évaluation.
+ * AJOUT : Affichage du Sujet/Problématique dans l'en-tête.
+ */
+/**
+ * @why Logique de dessin de la fiche d'évaluation (Version Complète).
+ * Inversion : Parcours en GRAS, Sujet en NORMAL.
  */
 function internalRenderEvalDesign(doc, data) {
     const grille = DB.oralConfig.grille;
     const primaryColor = [44, 62, 80];
 
-    // 1. Logo adaptatif
+    // 1. Logo
     if (DB.config.logo) {
         try {
             const imgProps = doc.getImageProperties(DB.config.logo);
@@ -17907,41 +17892,55 @@ function internalRenderEvalDesign(doc, data) {
     doc.setFont("helvetica", "bold");
     doc.text(`Fiche d'Évaluation - Session ${DB.config.year || new Date().getFullYear()}`, 105, 22, { align: 'center' });
 
-    // 3. Bloc d'en-tête (Candidat, Parcours, Jury + Langue conditionnelle)
+    // 3. Bloc d'en-tête (Cadre de 32mm de hauteur)
     doc.setDrawColor(200);
     doc.setFillColor(248, 249, 250);
-    // Hauteur fixe de 26mm suffisante pour 4 lignes
-    doc.rect(14, 31, 182, 26, 'FD'); 
+    doc.rect(14, 31, 182, 32, 'FD'); 
     
     doc.setFontSize(11);
     doc.setTextColor(0);
-    doc.setFont("helvetica", "bold");
     
-    doc.text(`Candidat(e) : ${data.nom} ${data.prenom}`, 18, 38);
-    doc.text(`Parcours / EPI : ${data.parcours}`, 18, 44);
-    doc.text(`Jury : ${data.jury}`, 18, 50);
+    // Candidat en gras
+    doc.setFont("helvetica", "bold");
+    doc.text(`Candidat(e) : ${data.nom} ${data.prenom} (${data.classe})`, 18, 38);
+    
+    // PARCOURS EN GRAS
+    doc.setFont("helvetica", "bold");
+    doc.text(`Parcours : ${data.parcours}`, 18, 44);
+    
+    // SUJET EN NORMAL
+    doc.setFont("helvetica", "normal");
+    doc.text(`Sujet : ${data.sujet}`, 18, 50);
+    
+    // Jury et Horaire en normal
+    doc.text(`Jury : ${data.jury} | Horaire : ${data.horaire}`, 18, 56);
 
-    // AFFICHAGE CONDITIONNEL DE LA LANGUE DANS L'EN-TÊTE
+    // Option langue (Gras + Vert)
     if (data.langue) {
-        doc.setTextColor(39, 174, 96); // Vert pédagogique pour souligner l'option
-        doc.text(`Option Langue : ${data.langue}`, 18, 56);
+        doc.setTextColor(39, 174, 96);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Option Langue : ${data.langue}`, 18, 61);
         doc.setTextColor(0);
     }
 
-    let startY = 65;
+    let startY = 72; 
     
-    // 4. Fonction de génération des tableaux (Prestation et Contenu)
+    // 4. Fonction interne de génération des tableaux de la grille
     const drawTable = (title, sectionData, maxPts) => {
-        if (!sectionData.criteres || sectionData.criteres.length === 0) return;
+        // Sécurité si les données de la grille sont manquantes
+        if (!sectionData || !sectionData.criteres || sectionData.criteres.length === 0) return;
         
+        // Calcul du nombre maximum de niveaux pour les colonnes
         let maxLvl = 0;
-        sectionData.criteres.forEach(c => { if (c.niveaux.length > maxLvl) maxLvl = c.niveaux.length; });
+        sectionData.criteres.forEach(c => { 
+            if (c.niveaux && c.niveaux.length > maxLvl) maxLvl = c.niveaux.length; 
+        });
 
         const head = [['Critères', ...Array.from({length: maxLvl}, (_, i) => `Niv ${i+1}`), 'Note']];
         const body = sectionData.criteres.map(c => [
             c.label, 
             ...Array.from({length: maxLvl}, (_, i) => c.niveaux[i] !== undefined ? `${c.niveaux[i]} pts` : '-'),
-            ""
+            "" // Colonne Note vide pour la saisie manuelle
         ]);
 
         doc.setFontSize(12);
@@ -17964,15 +17963,19 @@ function internalRenderEvalDesign(doc, data) {
         startY = doc.lastAutoTable.finalY + 12;
     };
 
+    // --- AFFICHAGE DES DEUX TABLEAUX DE LA GRILLE ---
     drawTable("Prestation Orale", grille.prestation, 8);
+    
+    // Saut de page de sécurité si le second tableau ne rentre pas
     if (startY > 230) { doc.addPage(); startY = 20; }
+    
     drawTable("Contenu de l'exposé", grille.contenu, 12);
 
-    // 5. SECTION BONUS LVE (Désormais conditionnée au profil de l'élève)
-    // Elle s'affiche SI le bonus est activé en config ET SI l'élève a une langue
+    // 5. Section Bonus LVE (Conditionnée)
     if (grille.bonus?.enabled && data.langue) {
         doc.setFontSize(11);
         doc.setTextColor(...primaryColor);
+        doc.setFont("helvetica", "bold");
         doc.text(`Bonus LVE : ${data.langue} (Max : +${grille.bonus.maxPoints} pts)`, 14, startY);
         
         const bonusHead = [['Critère', ...grille.bonus.niveaux.map((_, i) => `Niv ${i+1}`), 'Bonus']];
@@ -17985,20 +17988,23 @@ function internalRenderEvalDesign(doc, data) {
             theme: 'grid',
             headStyles: { fillColor: primaryColor },
             styles: { fontSize: 9, cellPadding: 3 },
-            columnStyles: { [bonusHead[0].length - 1]: { fillColor: [250, 240, 230] } }
+            columnStyles: { [bonusHead[0].length - 1]: { fillColor: [250, 240, 230], halign: 'center' } }
         });
         startY = doc.lastAutoTable.finalY + 10;
     }
 
     // 6. Bloc Appréciations et Note Finale
     if (startY > 240) { doc.addPage(); startY = 20; }
+    
     doc.setDrawColor(0);
     doc.setLineWidth(0.3);
-    doc.rect(14, startY, 182, 35);
+    doc.rect(14, startY, 182, 35); // Cadre appréciations
     doc.setFontSize(10);
     doc.setTextColor(0);
+    doc.setFont("helvetica", "normal");
     doc.text("Appréciations du jury :", 18, startY + 6);
     
+    // Emplacement Note Finale
     doc.setFillColor(236, 240, 241);
     doc.rect(130, startY + 38, 66, 15, 'FD');
     doc.setFontSize(12);
@@ -18994,15 +19000,15 @@ function drawOfficialHeader(doc, title, startY = 15) {
 }
 
 /**
- * @why Génère les convocations élèves de manière optimisée.
- * Optimisations : Indexation des passages (Map) et pré-calcul des ressources d'en-tête.
+ * @why Génère les convocations élèves incluant le Sujet et une signature agrandie.
+ * Optimisations : Indexation des passages et mise en page aérée.
  */
 window.exportOralConvocEleves = function() {
     if (!window.jspdf) return alert("Librairie jsPDF manquante.");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
     
-    // 1. INDEXATION PRÉALABLE (Accélère la recherche de planning)
+    // 1. INDEXATION DES PASSAGES (Pour la performance)
     const scheduleMap = {};
     const dist = DB.oralConfig.distribution || {};
     Object.entries(dist).forEach(([juryId, slots]) => {
@@ -19012,18 +19018,16 @@ window.exportOralConvocEleves = function() {
                     juryId, 
                     startTime: slot.startTime, 
                     endTime: slot.endTime,
-                    slot: slot // référence vers le créneau complet pour les groupes
+                    slot: slot 
                 };
             });
         });
     });
 
-    // 2. PRÉ-CALCUL DU FORMATAGE DE DATE
-    // Utilise la fonction formatDateFR définie précédemment
     const rawDate = DB.oralConfig.general?.date || "";
     const formattedOralDate = typeof formatDateFR === 'function' ? formatDateFR(rawDate) : rawDate;
 
-    // 3. TRI DES ÉLÈVES
+    // 2. TRI DES ÉLÈVES (Par classe puis par nom)
     const students = [...(DB.oralConfig.students || [])].sort((a, b) => {
         const c = (a.classe || "").localeCompare(b.classe || "");
         return c !== 0 ? c : a.nom.localeCompare(b.nom);
@@ -19033,7 +19037,6 @@ window.exportOralConvocEleves = function() {
     let count = 0;
 
     students.forEach(s => {
-        // Accès direct via la Map (Gain de performance majeur)
         const schedule = scheduleMap[s.id];
         if (!schedule) return;
 
@@ -19041,7 +19044,7 @@ window.exportOralConvocEleves = function() {
         isFirstPage = false;
         count++;
 
-        // Appel de l'en-tête (qui utilisera la date formatée si vous avez modifié drawOfficialHeader)
+        // En-tête officiel
         drawOfficialHeader(doc, "CONVOCATION - ÉPREUVE ORALE DNB", 20);
 
         // --- Logique de Civilité ---
@@ -19049,21 +19052,26 @@ window.exportOralConvocEleves = function() {
         if (s.sexe === 'F') civilite = "Madame";
         else if (s.sexe === 'M') civilite = "Monsieur";
 
-        // --- Cadre Identité ---
+        // --- CADRE 1 : IDENTITÉ (Hauteur augmentée pour le Sujet) ---
         doc.setDrawColor(44, 62, 80);
         doc.setLineWidth(0.5);
-        doc.rect(14, 50, 182, 40); 
+        doc.rect(14, 50, 182, 48); 
         
         doc.setFontSize(12);
         doc.setFont("helvetica", "bold");
         doc.text(`${civilite} ${s.nom.toUpperCase()} ${s.prenom}`, 20, 60);
         
         doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
         doc.text(`Qualité : Candidat(e) scolaire`, 20, 68);
         doc.text(`Classe : ${s.classe || "N/C"}`, 20, 76);
-        doc.text(`Parcours / Thématique : ${s.parcours || "Général"}`, 20, 84);
+        doc.text(`Parcours : ${s.parcours || "Général"}`, 20, 84);
+        
+        // Affichage du sujet en gras
+        doc.setFont("helvetica", "bold");
+        doc.text(`Sujet : ${s.sujet || "Non précisé"}`, 20, 92);
 
-        // --- Analyse Groupe & Langue ---
+        // --- ANALYSE GROUPE / LANGUE ---
         const isGroup = schedule.slot && schedule.slot.students.length > 1;
         const groupSize = isGroup ? schedule.slot.students.length : 1;
         const hasLangue = s.langue && s.langue.trim() !== "";
@@ -19071,24 +19079,23 @@ window.exportOralConvocEleves = function() {
         const extraLines = (isGroup ? 1 : 0) + (hasLangue ? 1 : 0);
         const boxHeight = 45 + (extraLines * 8);
 
-        // --- Cadre Épreuve ---
-        doc.rect(14, 100, 182, boxHeight); 
+        // --- CADRE 2 : DÉTAILS ÉPREUVE ---
+        doc.rect(14, 105, 182, boxHeight); 
         doc.setFont("helvetica", "bold");
-        doc.text(`DÉTAIL DE LA CONVOCATION`, 20, 110);
+        doc.text(`DÉTAIL DE LA CONVOCATION`, 20, 115);
         
         const roomName = getJuryRoomName(schedule.juryId);
         doc.setFont("helvetica", "normal");
-        doc.text(`Vous êtes convoqué(e) à vous présenter devant le :`, 20, 120);
+        doc.text(`Vous êtes convoqué(e) à vous présenter devant le :`, 20, 125);
         
         doc.setFontSize(14);
         doc.setFont("helvetica", "bold");
-        doc.text(`JURY ${schedule.juryId} - Salle ${roomName}`, 20, 130);
-        doc.text(`Heure de passage : ${schedule.startTime}`, 20, 138);
+        doc.text(`JURY ${schedule.juryId} - Salle ${roomName}`, 20, 135);
+        doc.text(`Heure de passage : ${schedule.startTime}`, 20, 143);
         
-        // --- Détails spécifiques ---
         doc.setFontSize(11);
         doc.setFont("helvetica", "normal");
-        let detailY = 148;
+        let detailY = 153;
         if (isGroup) {
             doc.text(`Modalité : Passage en groupe (${groupSize} candidats)`, 20, detailY);
             detailY += 8;
@@ -19097,13 +19104,13 @@ window.exportOralConvocEleves = function() {
             doc.text(`Spécificité linguistique : Présentation en ${s.langue.trim()}`, 20, detailY);
         }
 
-        // --- Mentions et Signatures (Bas de page) ---
-        const mentionY = 100 + boxHeight + 10;
+        // --- BAS DE PAGE : SIGNATURE AGRANDIE ---
+        const mentionY = 105 + boxHeight + 12;
         doc.setFontSize(9);
         doc.setFont("helvetica", "italic");
         doc.text("Se présenter 15 minutes avant l'heure, muni d'une pièce d'identité.", 105, mentionY, { align: 'center' });
         
-        const signatureY = Math.max(185, mentionY + 20);
+        const signatureY = 210; // Position stable pour le bloc signature
         const centerX = 150; 
         const city = DB.config.city || "Saint-Jean-d'Illac"; 
         const today = new Date().toLocaleDateString('fr-FR');
@@ -19118,12 +19125,14 @@ window.exportOralConvocEleves = function() {
         doc.text(dirCiv, centerX, signatureY + 6, { align: 'center' });
         if (dirName) doc.text(dirName, centerX, signatureY + 12, { align: 'center' });
 
-        // Image Signature
+        // IMAGE DE SIGNATURE AGRANDIE (50x25)
         if (DB.config.signature) {
             try {
-                const img = DB.config.signature;
-                doc.addImage(img, 'PNG', centerX - 15, signatureY + 16, 30, 15, undefined, 'FAST');
-            } catch (e) {}
+                // On centre l'image de 50mm sous le nom (centerX - 25)
+                doc.addImage(DB.config.signature, 'PNG', centerX - 25, signatureY + 15, 50, 25, undefined, 'FAST');
+            } catch (e) {
+                console.error("Erreur signature image", e);
+            }
         }
     });
 
@@ -19392,7 +19401,7 @@ window.exportOralConvocProfs = function() {
 };
 
 // ==========================================
-// 4. LISTE SYNTHÉTIQUE (PARCOURS & LANGUES PAR JURY)
+// 4. LISTE SYNTHÉTIQUE (PARCOURS, SUJETS & LANGUES PAR JURY)
 // ==========================================
 window.exportOralParcoursJury = function() {
     if (!window.jspdf) return alert("Librairie jsPDF manquante.");
@@ -19421,18 +19430,22 @@ window.exportOralParcoursJury = function() {
         doc.setFont("helvetica", "normal");
         doc.text(`Membres : ${members || "Non définis"}`, 14, currentY + 5);
 
-        // --- 2. Agrégation des données (Parcours & Langues) ---
-        const parcoursCount = {};
+        // --- 2. Agrégation Hiérarchique (Parcours > Sujets) ---
+        const dataTree = {}; // Structure : { "Parcours": { total: X, sujets: { "Sujet A": Y } } }
         const langueCount = {};
         
         if (dist[juryId]) {
             dist[juryId].forEach(slot => {
                 slot.students.forEach(s => {
-                    // Comptage Parcours
-                    const p = s.parcours || "-";
-                    parcoursCount[p] = (parcoursCount[p] || 0) + 1;
+                    // Logique Parcours & Sujets
+                    const p = s.parcours || "Non défini";
+                    const suj = s.sujet || "Sujet non précisé";
+
+                    if (!dataTree[p]) dataTree[p] = { total: 0, sujets: {} };
+                    dataTree[p].total++;
+                    dataTree[p].sujets[suj] = (dataTree[p].sujets[suj] || 0) + 1;
                     
-                    // Comptage Langues (seulement si la donnée existe et n'est pas vide)
+                    // Comptage Langues
                     if (s.langue && s.langue.trim() !== "") {
                         const l = s.langue.trim();
                         langueCount[l] = (langueCount[l] || 0) + 1;
@@ -19441,52 +19454,65 @@ window.exportOralParcoursJury = function() {
             });
         }
 
-        // Préparation du tableau Parcours
-        const parcoursBody = Object.keys(parcoursCount).sort().map(pName => [pName, parcoursCount[pName].toString()]);
+        // --- 3. Construction du corps du tableau Parcours/Sujets ---
+        const parcoursBody = [];
+        Object.keys(dataTree).sort().forEach(pName => {
+            // Ligne Parent (Le Parcours)
+            parcoursBody.push([
+                { content: pName, styles: { fontStyle: 'bold', fillColor: [245, 245, 245] } }, 
+                { content: dataTree[pName].total.toString(), styles: { fontStyle: 'bold', fillColor: [245, 245, 245] } }
+            ]);
+
+            // Lignes Enfants (Les Sujets sous ce parcours)
+            Object.keys(dataTree[pName].sujets).sort().forEach(sujName => {
+                parcoursBody.push([
+                    `   • ${sujName}`, 
+                    dataTree[pName].sujets[sujName].toString()
+                ]);
+            });
+        });
+
         if (parcoursBody.length === 0) parcoursBody.push(["Aucun candidat affecté", "-"]);
 
-        // --- 3. Rendu du Tableau des Parcours ---
+        // Rendu du Tableau des Parcours & Sujets
         doc.autoTable({
             startY: currentY + 9,
-            head: [['Parcours / Thématique', 'Nombre d\'oraux à évaluer']],
+            head: [['Parcours / Sujets précis', 'Total']],
             body: parcoursBody,
             theme: 'grid',
-            styles: { fontSize: 10, padding: 4 },
-            headStyles: { fillColor: [236, 240, 241], textColor: [44, 62, 80], fontStyle: 'bold' },
+            styles: { fontSize: 9, padding: 3 },
+            headStyles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold' },
             columnStyles: {
                 0: { cellWidth: 'auto' },
-                1: { cellWidth: 50, halign: 'center', fontStyle: 'bold' }
+                1: { cellWidth: 30, halign: 'center' }
             }
         });
 
-        currentY = doc.lastAutoTable.finalY + 8; // Marge sous le premier tableau
+        currentY = doc.lastAutoTable.finalY + 8;
 
-        // --- 4. Rendu du Tableau des Langues (Conditionnel) ---
+        // --- 4. Rendu du Tableau des Langues (Si nécessaire) ---
         const langueBody = Object.keys(langueCount).sort().map(lName => [lName, langueCount[lName].toString()]);
         
         if (langueBody.length > 0) {
             doc.autoTable({
                 startY: currentY,
-                head: [['Langue Vivante', 'Candidats concernés']],
+                head: [['Langue Vivante', 'Candidats']],
                 body: langueBody,
                 theme: 'grid',
-                styles: { fontSize: 10, padding: 4 },
-                // Couleur d'en-tête légèrement différente pour distinguer les tableaux
-                headStyles: { fillColor: [223, 230, 233], textColor: [45, 52, 54], fontStyle: 'italic' },
+                styles: { fontSize: 9, padding: 3 },
+                headStyles: { fillColor: [127, 140, 141], textColor: [255, 255, 255] },
                 columnStyles: {
                     0: { cellWidth: 'auto' },
-                    1: { cellWidth: 50, halign: 'center', fontStyle: 'bold' }
+                    1: { cellWidth: 30, halign: 'center' }
                 }
             });
             currentY = doc.lastAutoTable.finalY + 15;
         } else {
-            // S'il n'y a pas de langues, on rajoute juste l'espace pour le jury suivant
-            currentY += 7;
+            currentY += 10;
         }
 
-        // --- 5. Gestion de l'espace inter-jurys ---
-        // Saut de page sécurisé si on s'approche trop du bas de la page
-        if (currentY > 260) {
+        // --- 5. Saut de page ---
+        if (currentY > 250) {
             doc.addPage();
             currentY = 20;
         }
@@ -19496,7 +19522,7 @@ window.exportOralParcoursJury = function() {
     const schoolName = DB.config.schoolName || "Etablissement";
     const safeName = schoolName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, '_');
     
-    doc.save(`Specificites_Par_Jury_Oral_${safeName}_${sessionYear}.pdf`);
+    doc.save(`Récapitulatif_Jurys_Sujets_${safeName}_${sessionYear}.pdf`);
 };
 
 // ============================================================================
