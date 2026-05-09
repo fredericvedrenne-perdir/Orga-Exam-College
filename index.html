@@ -17619,8 +17619,8 @@ window.exportOralSignLists = function() {
 
 
 /**
- * @why Génère le bordereau de notation centralisé pour le secrétariat.
- * Version Paysage épurée : Focus sur l'identité, le parcours et la note finale globale.
+ * @why Génère le bordereau de notation en format PORTRAIT.
+ * Optimisation : Plus de lignes par page et colonnes ajustées pour la largeur A4 Portrait.
  */
 window.exportOralNotationSheets = function() {
     if (!DB.oralConfig.distribution || Object.keys(DB.oralConfig.distribution).length === 0) {
@@ -17628,81 +17628,98 @@ window.exportOralNotationSheets = function() {
     }
 
     const { jsPDF } = window.jspdf;
-    // 'l' pour Landscape (Paysage), 'mm' pour millimètres, 'a4' pour le format papier
-    const doc = new jsPDF('l', 'mm', 'a4'); 
+    // 'p' pour Portrait, 'mm' pour millimètres, 'a4' pour le format papier
+    const doc = new jsPDF('p', 'mm', 'a4'); 
     const primaryColor = [44, 62, 80];
     let pageCount = 0;
 
-    Object.keys(DB.oralConfig.distribution).forEach(jury => {
-        const slots = DB.oralConfig.distribution[jury];
+    // Le centre de la page A4 en portrait est à 105mm (210 / 2)
+    const centerX = 105;
+
+    Object.keys(DB.oralConfig.distribution).forEach(juryKey => {
+        const slots = DB.oralConfig.distribution[juryKey];
         if (slots.length === 0) return;
 
         if (pageCount > 0) doc.addPage();
         pageCount++;
 
-        // Appel sécurisé de la fonction d'insertion du logo (créée précédemment)
+        // Affichage du logo si la fonction existe
         if (typeof renderOralDocLogo === 'function') {
             renderOralDocLogo(doc);
         }
 
-        // Le centre de la page A4 en paysage est à 148.5mm (297 / 2)
-        const centerX = 148.5;
+        // Nettoyage de l'ID du jury (pour enlever "jury-" si présent)
+        const juryNum = juryKey.replace('jury-', '');
 
         // En-tête centré
-        doc.setFontSize(18);
+        doc.setFontSize(16);
         doc.setTextColor(...primaryColor);
         doc.setFont("helvetica", "bold");
-        doc.text(`Bordereau de Synthèse des Notes - Jury N°${jury}`, centerX, 20, { align: 'center' });
+        doc.text(`Bordereau de Synthèse des Notes - Jury N°${juryNum}`, centerX, 20, { align: 'center' });
 
-        doc.setFontSize(12);
+        doc.setFontSize(10);
         doc.setTextColor(100);
         doc.setFont("helvetica", "normal");
-        const juryMembers = DB.oralConfig.teachers.filter(t => t.jury === jury).map(t => t.nom).join(', ');
-        doc.text(`Session ${DB.config.year || new Date().getFullYear()} | Membres du jury : ${juryMembers || "Non définis"}`, centerX, 28, { align: 'center' });
+        
+        // Récupération des membres du jury
+        const juryMembers = DB.oralConfig.teachers
+            .filter(t => String(t.juryNumber || t.jury) === String(juryNum))
+            .map(t => t.nom.toUpperCase())
+            .join(', ');
+            
+        doc.text(`Session ${DB.config.year || new Date().getFullYear()} | Membres : ${juryMembers || "Non définis"}`, centerX, 27, { align: 'center' });
 
-        // Construction des lignes du tableau (Une ligne = Un élève)
+        // Construction des données du tableau
         const body = [];
         slots.forEach(slot => {
             slot.students.forEach(student => {
                 body.push([
                     `${student.nom.toUpperCase()} ${student.prenom}`,
-                    student.classe,
-                    slot.theme || "Non précisé",
-                    ""  // Case vide volontairement large pour la note
+                    student.classe || "-",
+                    student.sujet || slot.theme || "Non précisé",
+                    "" // Case note vide
                 ]);
             });
         });
 
-        // Génération du tableau
+        // Génération du tableau (Largeurs ajustées pour Portrait : total env. 182mm)
         doc.autoTable({
-            startY: 40,
-            head: [['Candidat(e)', 'Classe', 'Parcours / Thématique', 'Note Finale ( / 20)']],
+            startY: 35,
+            head: [['Candidat(e)', 'Cl.', 'Parcours / Sujet', 'Note / 20']],
             body: body,
             theme: 'grid',
-            headStyles: { fillColor: primaryColor, halign: 'center', valign: 'middle', fontSize: 12 },
-            styles: { fontSize: 11, cellPadding: 5, valign: 'middle' },
+            headStyles: { fillColor: primaryColor, halign: 'center', fontSize: 10 },
+            styles: { fontSize: 9, cellPadding: 3, valign: 'middle' },
             columnStyles: {
-                0: { cellWidth: 80, fontStyle: 'bold' }, // Nom très lisible
-                1: { halign: 'center', cellWidth: 30 }, // Classe centrée
-                2: { cellWidth: 90 }, // Espace généreux pour le nom du parcours
-                3: { halign: 'center', cellWidth: 50, fillColor: [248, 249, 250] } // Colonne note grisée pour attirer l'œil
-            }
+                0: { cellWidth: 55, fontStyle: 'bold' }, // Nom
+                1: { halign: 'center', cellWidth: 15 }, // Classe réduite
+                2: { cellWidth: 82 },                   // Sujet
+                3: { halign: 'center', cellWidth: 30, fillColor: [248, 249, 250] } // Note
+            },
+            // Permet au tableau de continuer sur la page suivante si trop de lignes
+            margin: { left: 14, right: 14, bottom: 30 } 
         });
 
-        // Zone de validation par les membres du jury
-        const finalY = doc.lastAutoTable.finalY + 20;
-        doc.setFontSize(12);
-        doc.setTextColor(0);
-        doc.text("Signatures des membres du jury pour validation :", 14, finalY);
-        doc.setDrawColor(0);
-        doc.setLineWidth(0.2);
+        // Zone de signatures (en bas de la dernière page du jury ou après le tableau)
+        let finalY = doc.lastAutoTable.finalY + 15;
         
-        // Espacement des lignes de signature adapté au mode Paysage
-        doc.line(14, finalY + 10, 100, finalY + 10);
-        doc.line(120, finalY + 10, 206, finalY + 10);
+        // Sécurité si le tableau finit trop bas sur la page
+        if (finalY > 260) {
+            doc.addPage();
+            finalY = 25;
+        }
+
+        doc.setFontSize(11);
+        doc.setTextColor(0);
+        doc.text("Signatures des membres du jury :", 14, finalY);
+        
+        doc.setDrawColor(150);
+        doc.line(14, finalY + 15, 80, finalY + 15);  // Signature 1
+        doc.line(120, finalY + 15, 186, finalY + 15); // Signature 2
     });
 
-    doc.save(`Bordereaux_Notation_Paysage_Oral_${DB.config.year || new Date().getFullYear()}.pdf`);
+    const year = DB.config.year || new Date().getFullYear();
+    doc.save(`Bordereaux_Notation_${year}.pdf`);
 };
 
 /**
@@ -19037,153 +19054,101 @@ function drawOfficialHeader(doc, title, startY = 15) {
 }
 
 /**
- * @why Génère les convocations élèves incluant le Sujet et une signature agrandie.
- * Optimisations : Indexation des passages et mise en page aérée.
+ * @why Version finale avec gestion du ratio de la signature pour éviter toute déformation.
+ * Applique la même logique que celle utilisée pour les convocations des écrits.
  */
 window.exportOralConvocEleves = function() {
     if (!window.jspdf) return alert("Librairie jsPDF manquante.");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
     
-    // 1. INDEXATION DES PASSAGES (Pour la performance)
+    // 1. INDEXATION DES PASSAGES (Heure corrigée)
     const scheduleMap = {};
     const dist = DB.oralConfig.distribution || {};
     Object.entries(dist).forEach(([juryId, slots]) => {
         slots.forEach(slot => {
-            slot.students.forEach(st => {
-                scheduleMap[st.id] = { 
-                    juryId, 
-                    startTime: slot.startTime, 
-                    endTime: slot.endTime,
-                    slot: slot 
-                };
-            });
+            const heurePassage = slot.time || slot.startTime || "N/C";
+            if (slot.students) {
+                slot.students.forEach(st => {
+                    scheduleMap[st.id] = { juryId, startTime: heurePassage };
+                });
+            }
         });
     });
 
-    const rawDate = DB.oralConfig.general?.date || "";
-    const formattedOralDate = typeof formatDateFR === 'function' ? formatDateFR(rawDate) : rawDate;
-
-    // 2. TRI DES ÉLÈVES (Par classe puis par nom)
     const students = [...(DB.oralConfig.students || [])].sort((a, b) => {
         const c = (a.classe || "").localeCompare(b.classe || "");
         return c !== 0 ? c : a.nom.localeCompare(b.nom);
     });
 
-    let isFirstPage = true;
     let count = 0;
 
     students.forEach(s => {
         const schedule = scheduleMap[s.id];
         if (!schedule) return;
 
-        if (!isFirstPage) doc.addPage();
-        isFirstPage = false;
+        if (count > 0) doc.addPage();
         count++;
 
-        // En-tête officiel
-        drawOfficialHeader(doc, "CONVOCATION - ÉPREUVE ORALE DNB", 20);
-
-        // --- Logique de Civilité ---
-        let civilite = "Candidat(e)";
-        if (s.sexe === 'F') civilite = "Madame";
-        else if (s.sexe === 'M') civilite = "Monsieur";
-
-// --- CADRE 1 : IDENTITÉ & SUJET (Correction dépassement) ---
-doc.setDrawColor(44, 62, 80);
-doc.setLineWidth(0.5);
-// On garde un cadre de 48mm de haut, mais on gère le texte à l'intérieur
-doc.rect(14, 50, 182, 48); 
-
-doc.setFontSize(12);
-doc.setFont("helvetica", "bold");
-doc.text(`${civilite} ${s.nom.toUpperCase()} ${s.prenom}`, 20, 60);
-
-doc.setFont("helvetica", "normal");
-doc.setFontSize(11);
-doc.text(`Qualité : Candidat(e) scolaire`, 20, 66);
-doc.text(`Classe : ${s.classe || "N/C"}`, 20, 72);
-
-// GESTION DU SUJET AVEC RETOUR À LA LIGNE AUTOMATIQUE
-doc.setFont("helvetica", "bold");
-doc.text(`Parcours : ${s.parcours || "Général"}`, 20, 80);
-
-const sujetLabel = "Sujet : ";
-const sujetTexte = s.sujet || "Non renseigné";
-doc.text(sujetLabel, 20, 86);
-
-doc.setFont("helvetica", "normal");
-// On définit une largeur max de 160mm pour le texte du sujet
-const sujetLines = doc.splitTextToSize(sujetTexte, 160); 
-// On affiche les lignes découpées
-doc.text(sujetLines, 35, 86); 
-
-// --- CADRE 2 : INFOS PASSAGE ---
-// On s'assure que ce cadre ne bouge pas, car le doc.rect est fixe
-doc.setDrawColor(44, 62, 80);
-doc.rect(14, 105, 182, 35);
-
-        // --- CADRE 2 : DÉTAILS ÉPREUVE ---
-        doc.rect(14, 105, 182, boxHeight); 
-        doc.setFont("helvetica", "bold");
-        doc.text(`DÉTAIL DE LA CONVOCATION`, 20, 115);
-        
-        const roomName = getJuryRoomName(schedule.juryId);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Vous êtes convoqué(e) à vous présenter devant le :`, 20, 125);
-        
-        doc.setFontSize(14);
-        doc.setFont("helvetica", "bold");
-        doc.text(`JURY ${schedule.juryId} - Salle ${roomName}`, 20, 135);
-        doc.text(`Heure de passage : ${schedule.startTime}`, 20, 143);
-        
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "normal");
-        let detailY = 153;
-        if (isGroup) {
-            doc.text(`Modalité : Passage en groupe (${groupSize} candidats)`, 20, detailY);
-            detailY += 8;
-        }
-        if (hasLangue) {
-            doc.text(`Spécificité linguistique : Présentation en ${s.langue.trim()}`, 20, detailY);
+        // En-tête
+        if (typeof drawOfficialHeader === 'function') {
+            drawOfficialHeader(doc, "CONVOCATION - ÉPREUVE ORALE DNB", 20);
         }
 
-        // --- BAS DE PAGE : SIGNATURE AGRANDIE ---
-        const mentionY = 105 + boxHeight + 12;
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "italic");
-        doc.text("Se présenter 15 minutes avant l'heure, muni d'une pièce d'identité.", 105, mentionY, { align: 'center' });
-        
-        const signatureY = 210; // Position stable pour le bloc signature
+        let civilite = s.sexe === 'F' ? "Madame" : (s.sexe === 'M' ? "Monsieur" : "Candidat(e)");
+
+        // --- CADRE 1 : IDENTITÉ & SUJET ---
+        doc.setDrawColor(44, 62, 80).setLineWidth(0.5);
+        const sujetTexte = s.sujet || "Non renseigné";
+        const sujetLines = doc.splitTextToSize(sujetTexte, 155);
+        const cadre1Height = 48 + ((sujetLines.length - 1) * 5);
+        doc.rect(14, 50, 182, cadre1Height); 
+
+        doc.setFontSize(12).setFont("helvetica", "bold");
+        doc.text(`${civilite} ${s.nom.toUpperCase()} ${s.prenom}`, 20, 60);
+        doc.setFont("helvetica", "normal").setFontSize(11);
+        doc.text(`Classe : ${s.classe || "N/C"}`, 20, 72);
+        doc.setFont("helvetica", "bold").text(`Parcours : ${s.parcours || "Général"}`, 20, 80);
+        doc.text("Sujet : ", 20, 86);
+        doc.setFont("helvetica", "normal").text(sujetLines, 35, 86); 
+
+        // --- CADRE 2 : INFOS PASSAGE ---
+        const cadre2Y = 50 + cadre1Height + 5; 
+        doc.rect(14, cadre2Y, 182, 35);
+        const roomName = (typeof getJuryRoomName === 'function') ? getJuryRoomName(schedule.juryId) : "N/C";
+        doc.setFont("helvetica", "bold").text(`JURY ${schedule.juryId.replace('jury-', '')} - Salle ${roomName}`, 20, cadre2Y + 15);
+        doc.setFontSize(14).text(`Heure de passage : ${schedule.startTime}`, 20, cadre2Y + 25);
+
+        // --- BLOC SIGNATURE (NON DÉFORMÉ) ---
+        const signatureY = 220;
         const centerX = 150; 
-        const city = DB.config.city || "Saint-Jean-d'Illac"; 
-        const today = new Date().toLocaleDateString('fr-FR');
+        const city = DB.config.city || "votre ville";
         
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(11);
-        doc.text(`Fait à ${city}, le ${today}`, centerX, signatureY, { align: 'center' });
+        doc.setFontSize(11).setFont("helvetica", "normal");
+        doc.text(`Fait à ${city}, le ${new Date().toLocaleDateString('fr-FR')}`, centerX, signatureY, { align: 'center' });
 
-        doc.setFont("helvetica", "bold");
         const dirCiv = DB.config.director?.civ || "Le Chef d'Établissement";
         const dirName = DB.config.director?.name || "";
-        doc.text(dirCiv, centerX, signatureY + 6, { align: 'center' });
-        if (dirName) doc.text(dirName, centerX, signatureY + 12, { align: 'center' });
+        doc.setFont("helvetica", "bold").text(dirCiv, centerX, signatureY + 7, { align: 'center' });
+        if (dirName) doc.text(dirName, centerX, signatureY + 14, { align: 'center' });
 
-        // IMAGE DE SIGNATURE AGRANDIE (50x25)
+        // LOGIQUE ANTI-DÉFORMATION
         if (DB.config.signature) {
             try {
-                // On centre l'image de 50mm sous le nom (centerX - 25)
-                doc.addImage(DB.config.signature, 'PNG', centerX - 25, signatureY + 15, 50, 25, undefined, 'FAST');
+                // Largeur souhaitée : 45mm
+                const targetWidth = 45;
+                // On insère l'image avec 'preserveAspectRatio' via la largeur fixe et hauteur auto (0 ou alias)
+                // jsPDF permet de passer 'undefined' en hauteur pour conserver le ratio si l'image est bien chargée
+                doc.addImage(DB.config.signature, 'PNG', centerX - (targetWidth / 2), signatureY + 18, targetWidth, 0);
             } catch (e) {
-                console.error("Erreur signature image", e);
+                console.error("Erreur signature :", e);
             }
         }
     });
 
-    if (count === 0) return alert("Aucun élève planifié.");
-    doc.save(`Convocations_Eleves_Oral.pdf`);
+    if (count === 0) return alert("Aucun élève trouvé.");
+    doc.save(`Convocations_Oral_DNB.pdf`);
 };
-
 
 // =========================================================
 // === 2. POCHETTES CONVOCATIONS ORAL (A3 PLIÉ - OPTIMISÉ) ===
@@ -19414,26 +19379,30 @@ window.exportOralConvocProfs = function() {
         doc.text("Présence requise 30 minutes avant le début du premier passage.", 14, currentY + 6);
         doc.text("Remise obligatoire des livrets d'évaluation au secrétariat avant le départ.", 14, currentY + 11);
 
-        // --- ZONE DE SIGNATURE ---
-        const signatureY = currentY + 30;
-        const centerX = 150;
-        const city = DB.config.city || "Saint-Jean-d'Illac";
-        const today = new Date().toLocaleDateString('fr-FR');
+        // --- BLOC SIGNATURE (NON DÉFORMÉ) ---
+        const signatureY = 220;
+        const centerX = 150; 
+        const city = DB.config.city || "votre ville";
         
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(11);
-        doc.text(`Fait à ${city}, le ${today}`, centerX, signatureY, { align: 'center' });
+        doc.setFontSize(11).setFont("helvetica", "normal");
+        doc.text(`Fait à ${city}, le ${new Date().toLocaleDateString('fr-FR')}`, centerX, signatureY, { align: 'center' });
 
         const dirCiv = DB.config.director?.civ || "Le Chef d'Établissement";
         const dirName = DB.config.director?.name || "";
-        doc.setFont("helvetica", "bold");
-        doc.text(dirCiv, centerX, signatureY + 6, { align: 'center' });
-        if (dirName) doc.text(dirName, centerX, signatureY + 12, { align: 'center' });
+        doc.setFont("helvetica", "bold").text(dirCiv, centerX, signatureY + 7, { align: 'center' });
+        if (dirName) doc.text(dirName, centerX, signatureY + 14, { align: 'center' });
 
+        // LOGIQUE ANTI-DÉFORMATION
         if (DB.config.signature) {
             try {
-                doc.addImage(DB.config.signature, 'PNG', centerX - 15, signatureY + 16, 30, 15, undefined, 'FAST');
-            } catch (e) {}
+                // Largeur souhaitée : 45mm
+                const targetWidth = 45;
+                // On insère l'image avec 'preserveAspectRatio' via la largeur fixe et hauteur auto (0 ou alias)
+                // jsPDF permet de passer 'undefined' en hauteur pour conserver le ratio si l'image est bien chargée
+                doc.addImage(DB.config.signature, 'PNG', centerX - (targetWidth / 2), signatureY + 18, targetWidth, 0);
+            } catch (e) {
+                console.error("Erreur signature :", e);
+            }
         }
     });
 
