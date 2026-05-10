@@ -1856,15 +1856,16 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
 		</div>
 
         <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-           <thead>
+<thead>
     <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6; text-align: left;">
-<th style="padding: 12px; width: 18%;">Nom / Prénom</th>
-<th style="padding: 12px; width: 15%;">Matière(s)</th>
-<th style="padding: 12px; width: 22%;">Disponibilité</th>
-<th style="padding: 12px; width: 12%;">Langue évaluée</th>
-<th style="padding: 12px; width: 10%;">Jury (N°)</th>
-<th style="padding: 12px; width: 10%;">Salle</th>
-<th style="padding: 12px; width: 13%; text-align: center;">Actions</th>
+        <th style="padding: 12px; width: 18%;">Nom / Prénom</th>
+        <th style="padding: 12px; width: 14%;">Matière(s)</th>
+        <th style="padding: 12px; width: 20%;">Disponibilité</th>
+        <th style="padding: 12px; width: 8%; text-align: center;">Réserve</th>
+        <th style="padding: 12px; width: 12%;">Langue évaluée</th>
+        <th style="padding: 12px; width: 8%;">Jury (N°)</th>
+        <th style="padding: 12px; width: 8%;">Salle</th>
+        <th style="padding: 12px; width: 12%; text-align: center;">Actions</th>
     </tr>
 </thead>
             <tbody id="oral-teachers-body">
@@ -15900,7 +15901,8 @@ function importTeachersToOral(mode) {
 
 /**
  * @why Rendu du tableau des professeurs avec alignement parfait, 
- * menu déroulant pour les langues et champs éditables pour Jury/Salle.
+ * menu déroulant pour les langues, champs éditables pour Jury/Salle,
+ * et une NOUVELLE colonne pour la gestion des professeurs de réserve.
  */
 function renderOralTeachersTable() {
     const body = document.getElementById('oral-teachers-body');
@@ -15923,10 +15925,11 @@ function renderOralTeachersTable() {
             
             const tr = document.createElement('tr');
             tr.style.borderBottom = "1px solid #eee";
-            tr.style.backgroundColor = "white";
+            // Ligne légèrement colorée si le prof est de réserve
+            tr.style.backgroundColor = t.isReserve ? "#fff3e0" : "white";
 
-const startTime = t.startTime || (window.oralConfig.general && window.oralConfig.general.start) || "08:00";
-const endTime = t.endTime || (window.oralConfig.general && window.oralConfig.general.end) || "17:00";
+            const startTime = t.startTime || (window.oralConfig.general && window.oralConfig.general.start) || "08:00";
+            const endTime = t.endTime || (window.oralConfig.general && window.oralConfig.general.end) || "17:00";
 
             // Construction des options du menu langue
             let langOptions = `<option value="">Aucune</option>`;
@@ -15934,10 +15937,11 @@ const endTime = t.endTime || (window.oralConfig.general && window.oralConfig.gen
                 langOptions += `<option value="${l}" ${t.langue === l ? 'selected' : ''}>${l}</option>`;
             });
 
+            // Redistribution des largeurs pour atteindre 100% avec la nouvelle colonne
             tr.innerHTML = `
                 <td style="padding: 12px; width: 18%;"><b>${t.nom.toUpperCase()}</b> ${t.prenom || ""}</td>
                 
-                <td style="padding: 12px; width: 15%; color: #7f8c8d; font-size: 0.85em;">${t.matiere || t.fonction || '-'}</td>
+                <td style="padding: 12px; width: 14%; color: #7f8c8d; font-size: 0.85em;">${t.matiere || t.fonction || '-'}</td>
                 
                 <td style="padding: 12px; width: 20%;">
                     <div style="display: flex; align-items: center; gap: 4px; background: #f8f9fa; padding: 4px; border-radius: 4px; border: 1px solid #dee2e6; width: fit-content;">
@@ -15951,27 +15955,38 @@ const endTime = t.endTime || (window.oralConfig.general && window.oralConfig.gen
                     </div>
                 </td>
                 
+                <td style="padding: 12px; width: 8%; text-align: center;">
+                    <input type="checkbox" 
+                           ${t.isReserve ? 'checked' : ''} 
+                           onchange="updateTeacherReserve('${t.id}', this.checked)"
+                           style="width: 18px; height: 18px; cursor: pointer; accent-color: #e67e22;"
+                           title="Définir comme professeur de réserve">
+                </td>
+
                 <td style="padding: 12px; width: 12%;">
                     <select onchange="updateTeacherField('${t.id}', 'langue', this.value)"
-                            style="width: 100%; padding: 5px; border: 1px solid #eee; border-radius: 4px; font-size: 0.9em;">
+                            ${t.isReserve ? 'disabled' : ''} 
+                            style="width: 100%; padding: 5px; border: 1px solid #eee; border-radius: 4px; font-size: 0.9em; ${t.isReserve ? 'background:#f2f2f2;' : ''}">
                         ${langOptions}
                     </select>
                 </td>
                 
-                <td style="padding: 12px; width: 10%;">
+                <td style="padding: 12px; width: 8%;">
                     <input type="text" value="${t.jury || ''}" 
                            onchange="updateTeacherField('${t.id}', 'jury', this.value)"
-                           style="width: 50px; padding: 5px; border: 1px solid #3498db; border-radius: 4px; font-weight: bold; text-align: center; color: #2980b9;">
+                           ${t.isReserve ? 'disabled' : ''} 
+                           style="width: 50px; padding: 5px; border: 1px solid #3498db; border-radius: 4px; font-weight: bold; text-align: center; color: #2980b9; ${t.isReserve ? 'background:#f2f2f2; border-color:#ccc;' : ''}">
                 </td>
                 
-                <td style="padding: 12px; width: 10%;">
+                <td style="padding: 12px; width: 8%;">
                     <input type="text" value="${t.salle || ''}" 
                            placeholder="Salle"
                            onchange="updateTeacherField('${t.id}', 'salle', this.value)"
-                           style="width: 70px; padding: 5px; border: 1px solid #eee; border-radius: 4px;">
+                           ${t.isReserve ? 'disabled' : ''} 
+                           style="width: 70px; padding: 5px; border: 1px solid #eee; border-radius: 4px; ${t.isReserve ? 'background:#f2f2f2;' : ''}">
                 </td>
                 
-                <td style="padding: 12px; width: 15%; text-align: center;">
+                <td style="padding: 12px; width: 12%; text-align: center;">
                     <button onclick="deleteOralTeacher('${t.id}')" 
                             style="background: #fadbd8; color: #e74c3c; border: none; padding: 5px 10px; border-radius: 4px; cursor:pointer; font-size: 0.8em;">
                         Supprimer
@@ -15982,6 +15997,32 @@ const endTime = t.endTime || (window.oralConfig.general && window.oralConfig.gen
         }
     });
 }
+
+/**
+ * @why Gère le basculement d'un professeur en mode "Réserve".
+ * Logique métier : Un professeur de réserve ne doit pas avoir de jury, ni de salle assignée.
+ * Cette fonction nettoie ces données automatiquement si la case est cochée.
+ */
+window.updateTeacherReserve = function(teacherId, isChecked) {
+    const teacher = window.oralConfig.teachers.find(t => t.id == teacherId);
+    if (teacher) {
+        teacher.isReserve = isChecked;
+        
+        if (isChecked) {
+            // Nettoyage pour éviter les conflits dans le publipostage
+            teacher.jury = "";
+            teacher.salle = "";
+            teacher.langue = "";
+        }
+        
+        if (typeof autoSave === 'function') {
+            autoSave();
+        }
+        
+        // On relance le rendu pour griser/verrouiller les champs (Jury/Salle) et colorer la ligne
+        renderOralTeachersTable();
+    }
+};
 
 /**
  * SUPPRESSION D'UN PROFESSEUR DU MODULE ORAL
@@ -16079,7 +16120,8 @@ function addManualTeacher(e) {
         matiere: matiere || "Externe", // Harmonisé en 'matiere' (sans s) pour correspondre au render
         startTime: defaultStart,       // Applique l'heure de début par défaut
         endTime: defaultEnd,           // Applique l'heure de fin par défaut
-        langue: "",
+        isReserve: false,
+		langue: "",
         jury: "",
         salle: ""
     });
@@ -17152,9 +17194,9 @@ window.updateBonusLvl = function(lvlIndex, value) {
  * @why Génère un fichier PDF A4 propre de la grille d'évaluation configurée.
  * Version épurée : Titre fusionné avec la session, sous-titres supprimés,
  * logo adaptatif maintenu, intégration du Parcours et note finale figée sur 20.
+ * CORRECTIF : Gestion des textes longs avec retour à la ligne automatique (overflow).
  */
 window.exportGrillePDF = function() {
-    // 1. Sécurité : Vérification de la présence de la librairie et des données
     if (!window.jspdf) return alert("Erreur : La librairie jsPDF n'est pas chargée.");
     if (!DB.oralConfig || !DB.oralConfig.grille) {
         alert("⚠️ Aucune grille configurée. Veuillez d'abord paramétrer la grille d'évaluation.");
@@ -17166,10 +17208,9 @@ window.exportGrillePDF = function() {
     const grille = DB.oralConfig.grille;
 
     // --- A. EN-TÊTE DU DOCUMENT ET LOGO ---
-    const nomExamen = DB.oralConfig.general?.name || "Epreuve_Orale"; // Utilisé uniquement pour le nom du fichier PDF
+    const nomExamen = DB.oralConfig.general?.name || "Epreuve_Orale"; 
     const sessionYear = DB.config.year || new Date().getFullYear();
     
-    // Insertion du Logo Adaptatif (Ratio préservé)
     if (DB.config.logo) {
         try {
             const imgProps = doc.getImageProperties(DB.config.logo);
@@ -17184,26 +17225,21 @@ window.exportGrillePDF = function() {
         }
     }
     
-    // Titre Principal fusionné
     doc.setFontSize(18);
-    doc.setTextColor(44, 62, 80); // Bleu foncé institutionnel
+    doc.setTextColor(44, 62, 80); 
     doc.setFont("helvetica", "bold");
     doc.text(`Grille d'évaluation - Session ${sessionYear}`, 105, 22, { align: 'center' });
 
-    // Zone pour identifier le candidat, le parcours et le jury
     doc.setDrawColor(200);
     doc.setFillColor(248, 249, 250);
-    // MISE À JOUR : Le rectangle est agrandi à 26mm de hauteur pour 3 lignes
     doc.rect(14, 31, 182, 26, 'FD'); 
     doc.setFontSize(12);
     doc.setTextColor(0);
     
-    // MISE À JOUR : Espacement des 3 lignes (Y = 38, 45, 52)
     doc.text("Candidat(e) : .....................................................................", 18, 38);
     doc.text("Parcours / EPI : ................................................................", 18, 45);
     doc.text("Jury : ..................................................................................", 18, 52);
 
-    // MISE À JOUR : On repousse le tableau à Y=65 pour éviter la collision avec le rectangle
     let startY = 65; 
 
     // --- B. FONCTION HELPER POUR GÉNÉRER UN TABLEAU ---
@@ -17231,7 +17267,7 @@ window.exportGrillePDF = function() {
                     row.push("-"); 
                 }
             }
-            row.push(""); // Case vide pour la note manuelle
+            row.push(""); 
             bodyRows.push(row);
         });
 
@@ -17246,9 +17282,11 @@ window.exportGrillePDF = function() {
             body: bodyRows,
             theme: 'grid',
             headStyles: { fillColor: primaryColor, halign: 'center' },
-            styles: { fontSize: 10, cellPadding: 3, valign: 'middle' },
+            // MODIFICATION ICI : overflow ajouté
+            styles: { fontSize: 10, cellPadding: 3, valign: 'middle', overflow: 'linebreak' },
             columnStyles: { 
-                0: { cellWidth: 'auto' }, 
+                // MODIFICATION ICI : largeur fixe au lieu de 'auto' pour forcer le retour à la ligne
+                0: { cellWidth: 70 }, 
                 [headRow.length - 1]: { cellWidth: 20, halign: 'center', fillColor: [240, 240, 240] }
             }
         });
@@ -17257,15 +17295,11 @@ window.exportGrillePDF = function() {
     };
 
     // --- C. DESSIN DES SECTIONS ---
-    
-    // 1. Prestation
     drawSectionTable("Prestation Orale", grille.prestation, 8);
     
-    // 2. Contenu
     if (startY > 220) { doc.addPage(); startY = 20; }
     drawSectionTable("Contenu de l'exposé", grille.contenu, 12);
 
-    // 3. Bonus Langue
     if (grille.bonus && grille.bonus.enabled) {
         if (startY > 250) { doc.addPage(); startY = 20; }
         
@@ -17289,16 +17323,17 @@ window.exportGrillePDF = function() {
             body: [bonusRow],
             theme: 'grid',
             headStyles: { fillColor: primaryColor, halign: 'center' },
-            styles: { fontSize: 10, cellPadding: 3, valign: 'middle' },
+            // MODIFICATION ICI
+            styles: { fontSize: 10, cellPadding: 3, valign: 'middle', overflow: 'linebreak' },
             columnStyles: { 
-                0: { cellWidth: 'auto' }, 
+                0: { cellWidth: 70 }, // MODIFICATION ICI
                 [headBonus.length - 1]: { cellWidth: 20, halign: 'center', fillColor: [250, 240, 230] }
             }
         });
         startY = doc.lastAutoTable.finalY + 15;
     }
 
-    // --- D. BLOC DE NOTATION FINALE ET APPRÉCIATIONS ---
+    // --- D. BLOC DE NOTATION FINALE ---
     if (startY > 200) { doc.addPage(); startY = 20; }
 
     doc.setDrawColor(0);
@@ -17321,10 +17356,8 @@ window.exportGrillePDF = function() {
     doc.rect(130, startY + 45, 66, 20, 'FD');
     
     doc.setFontSize(14);
-    // Plafond fixé visuellement à / 20 comme demandé
     doc.text(`NOTE FINALE :        / 20`, 135, startY + 58);
 
-    // --- E. TÉLÉCHARGEMENT ---
     const safeName = nomExamen.replace(/[^a-zA-Z0-9]/g, '_');
     doc.save(`Grille_Evaluation_${safeName}.pdf`);
 };
@@ -18054,12 +18087,10 @@ window.exportPrefilledEvalSheets = function() {
 };
 
 /**
- * @why Logique de dessin de la fiche d'évaluation.
- * AJOUT : Affichage du Sujet/Problématique dans l'en-tête.
- */
-/**
  * @why Logique de dessin de la fiche d'évaluation (Version Complète).
  * Inversion : Parcours en GRAS, Sujet en NORMAL.
+ * CORRECTIF : Retour à la ligne automatique pour les critères longs.
+ * AJOUT : Intégration du bloc des signatures du jury en bas de page.
  */
 function internalRenderEvalDesign(doc, data) {
     const grille = DB.oralConfig.grille;
@@ -18088,22 +18119,17 @@ function internalRenderEvalDesign(doc, data) {
     doc.setFontSize(11);
     doc.setTextColor(0);
     
-    // Candidat en gras
     doc.setFont("helvetica", "bold");
     doc.text(`Candidat(e) : ${data.nom} ${data.prenom} (${data.classe})`, 18, 38);
     
-    // PARCOURS EN GRAS
     doc.setFont("helvetica", "bold");
     doc.text(`Parcours : ${data.parcours}`, 18, 44);
     
-    // SUJET EN NORMAL
     doc.setFont("helvetica", "normal");
     doc.text(`Sujet : ${data.sujet}`, 18, 50);
     
-    // Jury et Horaire en normal
     doc.text(`Jury : ${data.jury} | Horaire : ${data.horaire}`, 18, 56);
 
-    // Option langue (Gras + Vert)
     if (data.langue) {
         doc.setTextColor(39, 174, 96);
         doc.setFont("helvetica", "bold");
@@ -18115,10 +18141,8 @@ function internalRenderEvalDesign(doc, data) {
     
     // 4. Fonction interne de génération des tableaux de la grille
     const drawTable = (title, sectionData, maxPts) => {
-        // Sécurité si les données de la grille sont manquantes
         if (!sectionData || !sectionData.criteres || sectionData.criteres.length === 0) return;
         
-        // Calcul du nombre maximum de niveaux pour les colonnes
         let maxLvl = 0;
         sectionData.criteres.forEach(c => { 
             if (c.niveaux && c.niveaux.length > maxLvl) maxLvl = c.niveaux.length; 
@@ -18128,7 +18152,7 @@ function internalRenderEvalDesign(doc, data) {
         const body = sectionData.criteres.map(c => [
             c.label, 
             ...Array.from({length: maxLvl}, (_, i) => c.niveaux[i] !== undefined ? `${c.niveaux[i]} pts` : '-'),
-            "" // Colonne Note vide pour la saisie manuelle
+            "" 
         ]);
 
         doc.setFontSize(12);
@@ -18142,9 +18166,9 @@ function internalRenderEvalDesign(doc, data) {
             body: body,
             theme: 'grid',
             headStyles: { fillColor: primaryColor, halign: 'center' },
-            styles: { fontSize: 9, cellPadding: 3, valign: 'middle' },
+            styles: { fontSize: 9, cellPadding: 3, valign: 'middle', overflow: 'linebreak' },
             columnStyles: { 
-                0: { cellWidth: 'auto' }, 
+                0: { cellWidth: 70 }, 
                 [head[0].length - 1]: { cellWidth: 15, fillColor: [240, 240, 240] } 
             }
         });
@@ -18154,12 +18178,10 @@ function internalRenderEvalDesign(doc, data) {
     // --- AFFICHAGE DES DEUX TABLEAUX DE LA GRILLE ---
     drawTable("Prestation Orale", grille.prestation, 8);
     
-    // Saut de page de sécurité si le second tableau ne rentre pas
     if (startY > 230) { doc.addPage(); startY = 20; }
-    
     drawTable("Contenu de l'exposé", grille.contenu, 12);
 
-    // 5. Section Bonus LVE (Conditionnée)
+    // 5. Section Bonus LVE
     if (grille.bonus?.enabled && data.langue) {
         doc.setFontSize(11);
         doc.setTextColor(...primaryColor);
@@ -18175,31 +18197,44 @@ function internalRenderEvalDesign(doc, data) {
             body: bonusBody,
             theme: 'grid',
             headStyles: { fillColor: primaryColor },
-            styles: { fontSize: 9, cellPadding: 3 },
-            columnStyles: { [bonusHead[0].length - 1]: { fillColor: [250, 240, 230], halign: 'center' } }
+            styles: { fontSize: 9, cellPadding: 3, valign: 'middle', overflow: 'linebreak' },
+            columnStyles: { 
+                0: { cellWidth: 70 }, 
+                [bonusHead[0].length - 1]: { fillColor: [250, 240, 230], halign: 'center', cellWidth: 15 } 
+            }
         });
         startY = doc.lastAutoTable.finalY + 10;
     }
 
-    // 6. Bloc Appréciations et Note Finale
-    if (startY > 240) { doc.addPage(); startY = 20; }
+    // 6. Bloc Appréciations, Note Finale et SIGNATURES
+    // Sécurité : On anticipe le besoin d'espace supplémentaire pour les signatures
+    if (startY > 220) { doc.addPage(); startY = 20; }
     
     doc.setDrawColor(0);
     doc.setLineWidth(0.3);
-    doc.rect(14, startY, 182, 35); // Cadre appréciations
+    doc.rect(14, startY, 182, 35); 
     doc.setFontSize(10);
     doc.setTextColor(0);
     doc.setFont("helvetica", "normal");
     doc.text("Appréciations du jury :", 18, startY + 6);
     
-    // Emplacement Note Finale
+    // Cadre de la Note Finale (à droite)
     doc.setFillColor(236, 240, 241);
     doc.rect(130, startY + 38, 66, 15, 'FD');
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
     doc.text(`TOTAL :        / 20`, 135, startY + 48);
-}
 
+    // NOUVEAU : Bloc Signatures (à gauche)
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("Signatures des membres du jury :", 18, startY + 44);
+    
+    // Ligne de signature esthétique
+    doc.setDrawColor(150);
+    doc.setLineWidth(0.2);
+    doc.line(18, startY + 51, 100, startY + 51);
+}
 /**
  * @why Initialise et affiche la liste des jurys dans la barre latérale du menu Notes.
  */
@@ -19521,28 +19556,72 @@ window.confirmOralProfConvocGeneration = function() {
     exportOralConvocProfs({ text: text });
 };
 
+/**
+ * Lance la génération des convocations avec une fusion sécurisée des paramètres
+ */
+window.exportOralConvocProfsDirect = function() {
+    // Valeurs de secours (au cas où la DB soit vide ou incomplète)
+    const defaults = {
+        text: "Présence requise 30 minutes avant le début du premier passage.\nRemise obligatoire des livrets d'évaluation au secrétariat avant le départ.",
+        reserveStart: "08:00",
+        reserveEnd: "12:30"
+    };
+
+    // On fusionne : les données de la DB écrasent les défauts SEULEMENT si elles existent
+    const savedParams = DB.oralConfig.profConvocParams || {};
+    const finalParams = {
+        text: savedParams.text || defaults.text,
+        reserveStart: savedParams.reserveStart || defaults.reserveStart,
+        reserveEnd: savedParams.reserveEnd || defaults.reserveEnd
+    };
+
+    exportOralConvocProfs(finalParams);
+};
+
+/**
+ * @why Génère les convocations professeurs (Jurys classiques & Réserves).
+ * Gère l'affichage dynamique : tableau pour les jurys, bloc horaire pour les réserves.
+ * Sécurisé contre les valeurs manquantes (undefined).
+ */
 window.exportOralConvocProfs = function(params) {
     if (!window.jspdf) return alert("Librairie jsPDF manquante.");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
-    // On récupère les consignes passées en paramètre ou en DB
-    const p = params || DB.oralConfig.profConvocParams || { 
-        text: "Présence requise 30 minutes avant le début du premier passage.\nRemise obligatoire des livrets d'évaluation au secrétariat avant le départ." 
+    // --- CORRECTION ICI : Récupération dynamique des heures de la base de données ---
+    const globalStart = (DB.oralConfig.general && DB.oralConfig.general.start) ? DB.oralConfig.general.start : "08:00";
+    const globalEnd = (DB.oralConfig.general && DB.oralConfig.general.end) ? DB.oralConfig.general.end : "17:00";
+
+    // 1. Sécurisation des paramètres (Fusion entre paramètres passés, DB et Défauts)
+    const defaults = {
+        text: "Présence requise 30 minutes avant le début du premier passage.\nRemise obligatoire des livrets d'évaluation au secrétariat avant le départ.",
+        reserveStart: globalStart, // Utilise l'heure de début globale
+        reserveEnd: globalEnd      // Utilise l'heure de fin globale
     };
 
-    const allTeachers = DB.oralConfig.teachers || [];
-    const teachersToConvoque = allTeachers.filter(t => t.jury);
-    
-    if(teachersToConvoque.length === 0) return alert("Aucun enseignant n'est affecté à un jury.");
+    const savedParams = DB.oralConfig.profConvocParams || {};
+    const p = {
+        text: params?.text || savedParams.text || defaults.text,
+        reserveStart: params?.reserveStart || savedParams.reserveStart || defaults.reserveStart,
+        reserveEnd: params?.reserveEnd || savedParams.reserveEnd || defaults.reserveEnd
+    };
 
+    // 2. Filtrage des enseignants (Jury affecté OU coché en Réserve)
+    const allTeachers = DB.oralConfig.teachers || [];
+    const teachersToConvoque = allTeachers.filter(t => (t.jury && t.jury !== "") || t.isReserve);
+    
+    if (teachersToConvoque.length === 0) {
+        return alert("Aucun enseignant à convoquer (pas de jury assigné et aucun prof en réserve).");
+    }
+
+    // 3. Indexation des données de Jury (pour les membres classiques)
     const juryDataMap = {};
     allTeachers.forEach(t => {
         if (!t.jury) return;
         if (!juryDataMap[t.jury]) {
-            juryDataMap[t.jury] = { room: "Non assignée", members: [] };
+            juryDataMap[t.jury] = { room: "Non définie", members: [] };
         }
-        juryDataMap[t.jury].members.push(`${t.nom} ${t.prenom || ""}`);
+        juryDataMap[t.jury].members.push(`${t.nom.toUpperCase()} ${t.prenom || ""}`);
         if (t.salle && t.salle.trim() !== "") {
             juryDataMap[t.jury].room = t.salle;
         }
@@ -19554,52 +19633,80 @@ window.exportOralConvocProfs = function(params) {
         if (!isFirstPage) doc.addPage();
         isFirstPage = false;
 
-        drawOfficialHeader(doc, "CONVOCATION JURY - ÉPREUVE ORALE", 20);
+        let currentY = 20;
 
-        const juryInfo = juryDataMap[t.jury];
-        
-        doc.setFontSize(12).setFont("helvetica", "bold");
-        doc.text(`Enseignant(e) : ${t.nom.toUpperCase()} ${t.prenom || ""}`, 14, 50);
-        doc.text(`Affectation : JURY ${t.jury} - Salle ${juryInfo.room}`, 14, 60);
-        
-        const colleagues = juryInfo.members
-            .filter(m => m !== `${t.nom} ${t.prenom || ""}`)
-            .join(', ');
+        // --- BRANCHEMENT : RÉSERVE OU JURY CLASSIQUE ---
+        if (t.isReserve) {
+            // --- CAS A : ENSEIGNANT DE RÉSERVE ---
+            drawOfficialHeader(doc, "CONVOCATION - ENSEIGNANT DE RÉSERVE", currentY);
+            
+            doc.setFontSize(12).setFont("helvetica", "bold").setTextColor(0);
+            doc.text(`Enseignant(e) : ${t.nom.toUpperCase()} ${t.prenom || ""}`, 14, 50);
+            
+            // Cadre d'information visuel pour la Réserve
+            doc.setDrawColor(230, 126, 34); // Orange institutionnel
+            doc.setFillColor(253, 242, 233);
+            doc.rect(14, 60, 182, 35, 'FD');
+            
+            doc.setFontSize(11).setFont("helvetica", "bold").setTextColor(211, 84, 0);
+            doc.text("AFFECTATION : MEMBRE DU JURY DE RÉSERVE", 18, 68);
+            
+            doc.setFontSize(10).setFont("helvetica", "normal").setTextColor(0);
+            doc.text(`Votre présence est requise dans l'établissement de ${p.reserveStart} à ${p.reserveEnd}.`, 18, 78);
+            doc.text("Vous pourrez être sollicité(e) à tout moment pour pallier l'absence d'un juré.", 18, 85);
+            
+            currentY = 110;
+        } 
+        else {
+            // --- CAS B : JURY CLASSIQUE ---
+            drawOfficialHeader(doc, "CONVOCATION JURY - ÉPREUVE ORALE", currentY);
 
-        doc.setFontSize(10).setFont("helvetica", "normal");
-        doc.text(`Co-évaluateur(s) : ${colleagues || "Aucun"}`, 14, 68);
+            const juryInfo = juryDataMap[t.jury] || { room: "N/A", members: [] };
+            
+            doc.setFontSize(12).setFont("helvetica", "bold").setTextColor(0);
+            doc.text(`Enseignant(e) : ${t.nom.toUpperCase()} ${t.prenom || ""}`, 14, 50);
+            doc.text(`Affectation : JURY ${t.jury} - Salle ${juryInfo.room}`, 14, 60);
+            
+            const colleagues = juryInfo.members
+                .filter(m => m !== `${t.nom.toUpperCase()} ${t.prenom || ""}`)
+                .join(', ');
 
-        const passages = DB.oralConfig.distribution[t.jury] || [];
-        doc.text(`Votre planning d'interrogation :`, 14, 85);
+            doc.setFontSize(10).setFont("helvetica", "normal");
+            doc.text(`Co-évaluateur(s) : ${colleagues || "Aucun"}`, 14, 68);
 
-        const tableBody = passages.map(slot => {
-            const studentNames = slot.students.map(s => `${s.nom.toUpperCase()} ${s.prenom} (${s.classe || "N/C"})`).join(' & ');
-            const parcours = slot.students[0]?.parcours || "-";
-            return [slot.startTime, studentNames, parcours];
-        });
+            // Planning des passages
+            const passages = (DB.oralConfig.distribution && DB.oralConfig.distribution[t.jury]) || [];
+            doc.text(`Votre planning d'interrogation :`, 14, 85);
 
-        doc.autoTable({
-            startY: 90,
-            head: [['Heure', 'Candidat(s)', 'Parcours / Sujet']],
-            body: tableBody,
-            theme: 'striped',
-            headStyles: { fillColor: [44, 62, 80] },
-            styles: { fontSize: 9 }
-        });
+            const tableBody = passages.map(slot => {
+                const names = slot.students.map(s => `${s.nom.toUpperCase()} ${s.prenom}`).join(' & ');
+                const parcours = slot.students[0]?.parcours || "-";
+                return [slot.startTime, names, parcours];
+            });
 
-        // --- BLOC NOTA BENE DYNAMIQUE ---
-        let currentY = doc.lastAutoTable.finalY + 15;
-        if (currentY > 210) { doc.addPage(); currentY = 25; }
+            doc.autoTable({
+                startY: 90,
+                head: [['Heure', 'Candidat(s)', 'Parcours']],
+                body: tableBody,
+                theme: 'striped',
+                headStyles: { fillColor: [44, 62, 80] },
+                styles: { fontSize: 9 }
+            });
 
-        doc.setFontSize(10).setFont("helvetica", "bold");
+            currentY = doc.lastAutoTable.finalY + 15;
+        }
+
+        // --- BLOC COMMUN : CONSIGNES ET SIGNATURE ---
+        if (currentY > 220) { doc.addPage(); currentY = 20; }
+
+        // Consignes importantes
+        doc.setFontSize(10).setFont("helvetica", "bold").setTextColor(0);
         doc.text("Important :", 14, currentY);
-        
         doc.setFontSize(9).setFont("helvetica", "italic");
-        // splitTextToSize permet de gérer les retours à la ligne automatiques si le texte est long
         const instructionLines = doc.splitTextToSize(p.text, 180);
         doc.text(instructionLines, 14, currentY + 6);
 
-        // --- BLOC SIGNATURE ---
+        // Bloc Signature
         const signatureY = 235;
         const centerX = 150; 
         const city = DB.config.city || "votre ville";
@@ -19614,16 +19721,17 @@ window.exportOralConvocProfs = function(params) {
 
         if (DB.config.signature) {
             try {
+                // Signature non déformée (largeur 45mm)
                 doc.addImage(DB.config.signature, 'PNG', centerX - 22.5, signatureY + 18, 45, 0);
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error("Erreur signature:", e); }
         }
     });
 
+    // 4. Finalisation du nom de fichier
     const sessionYear = DB.config.year || new Date().getFullYear();
-    const schoolName = DB.config.schoolName || "Etablissement";
-    const safeName = schoolName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, '_');
+    const schoolName = (DB.config.schoolName || "Export").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, '_');
     
-    doc.save(`Convocations_Profs_Oral_${safeName}_${sessionYear}.pdf`);
+    doc.save(`Convocations_Profs_Oral_${schoolName}_${sessionYear}.pdf`);
 };
 
 /**
