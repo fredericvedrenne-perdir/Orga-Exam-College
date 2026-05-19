@@ -15424,7 +15424,7 @@ window.processOralExcelImport = function(event) {
                 // 5. Hydratation des données en mémoire
                 if (studentOral) {
                     studentOral.langue = (langue && langue !== "-") ? langue : null;
-                    studentOral.parcours = (parcours && parcours !== "-") ? parcours : "Général";
+                    studentOral.parcours = (parcours && parcours !== "-") ? parcours : "Non précisé";
                     studentOral.sujet = (sujet && sujet !== "-") ? sujet : null;
 
                     // Logique de création de Groupe
@@ -15518,7 +15518,7 @@ window.exportOralStudentsData = function() {
             student.sexe || "M",
             student.langue || "-",
             student.groupId ? "En groupe" : "Individuel",
-            student.parcours || "Général",
+            student.parcours || "Non précisé",
             student.sujet || "-",
             composition // La colonne calculée dynamiquement
         ]);
@@ -16350,7 +16350,7 @@ function runOralAlgorithm() {
 
         let currentPassage = {
             students: [student],
-            theme: student.parcours || "Général",
+            theme: student.parcours || "Non précisé",
             langue: student.langue ? student.langue.trim().toUpperCase() : null, 
             isGroup: false,
             duration: durIndiv
@@ -16583,11 +16583,18 @@ function recalculateJuryTimes(juryName) {
 }
 
 /**
- * @why Génère l'affichage complet des colonnes de jurys.
- * Design : En-tête sur deux lignes pour éviter les chevauchements.
- * Intègre : Pauses (☕), Priorités (⭐), Séparateurs Drag & Drop, Badges Langues.
+ * @why Génère l'affichage complet des colonnes de jurys et de la Zone Tampon.
+ * Design : En-tête sur deux lignes, différenciation visuelle de la zone tampon.
+ * Accessibilité : Ajout d'attributs ARIA pour la navigation au clavier/lecteur d'écran.
+ * Sécurité : Synchronisation systématique des données avant rendu.
  */
-function renderOralVisualDistribution() {
+window.renderOralVisualDistribution = function() {
+    // 1. DATA INTEGRITY : On synchronise la liste principale et la répartition
+    // Cela garantit la création ou la mise à jour de la "Zone Tampon" avant l'affichage
+    if (typeof syncOralDistributionData === 'function') {
+        syncOralDistributionData();
+    }
+
     const container = document.getElementById('oral-visual-distrib');
     if (!container) return;
     container.innerHTML = '';
@@ -16601,36 +16608,51 @@ function renderOralVisualDistribution() {
         return;
     }
 
-    // On trie les jurys par nom pour un affichage ordonné
-    Object.keys(dist).sort((a,b) => a.localeCompare(b, undefined, {numeric: true})).forEach(juryName => {
+    // On trie les jurys : La Zone Tampon en premier (ou dernier), les autres par ordre alphabétique
+    Object.keys(dist).sort((a,b) => {
+        if (a === "Zone Tampon") return -1; // Force la zone tampon au début
+        if (b === "Zone Tampon") return 1;
+        return a.localeCompare(b, undefined, {numeric: true});
+    }).forEach(juryName => {
         const slots = dist[juryName];
+        const isBuffer = juryName === "Zone Tampon";
         
         // --- 1. Récupération des informations du Jury ---
         const juryTeachers = DB.oralConfig.teachers.filter(t => t.jury === juryName);
-        // On met les noms en gras et majuscules pour la lisibilité
         const teacherNames = juryTeachers.map(t => t.nom.toUpperCase()).join(' / ');
         const juryLangs = [...new Set(juryTeachers.map(t => t.langue).filter(Boolean))].join(', ');
         
         let card = document.createElement('div');
         card.className = 'dd-room-card';
-        card.style.width = "320px"; // Largeur fixe pour éviter les cartes déformées
+        // UX : Style spécifique si c'est la Zone Tampon
+        card.style.width = "320px";
         card.style.minWidth = "300px";
+        if (isBuffer) {
+            card.style.border = "2px dashed #e67e22";
+            card.style.boxShadow = "0 4px 6px rgba(230, 126, 34, 0.1)";
+        }
+
+        // Configuration visuelle dynamique selon le type (Jury vs Tampon)
+        const headerBg = isBuffer ? "#d35400" : "#2c3e50";
+        const headerIcon = isBuffer ? "🛟" : "🧑‍⚖️";
+        const headerTitle = isBuffer ? "ZONE TAMPON" : `JURY ${juryName}`;
+        const teacherText = isBuffer ? "Élèves en attente d'affectation" : (teacherNames || 'Aucun prof assigné');
 
         // --- 2. Injection de l'en-tête (Design à 2 lignes) ---
         card.innerHTML = `
-            <div class="dd-room-header" style="background:#2c3e50; color:white; padding:12px; border-radius:8px 8px 0 0;">
+            <div class="dd-room-header" style="background:${headerBg}; color:white; padding:12px; border-radius:8px 8px 0 0;">
                 <div style="display:flex; justify-content:center; align-items:center; gap:12px; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">
-                    <span style="font-weight:bold; font-size:1.1rem;">🧑‍⚖️ JURY ${juryName}</span>
-                    <span style="font-size:0.75rem; background:#3498db; color:white; padding:2px 10px; border-radius:12px; white-space:nowrap;">
-                        ${slots.length} passages
+                    <span style="font-weight:bold; font-size:1.1rem;">${headerIcon} ${headerTitle}</span>
+                    <span style="font-size:0.75rem; background:rgba(0,0,0,0.2); color:white; padding:2px 10px; border-radius:12px; white-space:nowrap;" aria-label="Nombre de passages : ${slots.length}">
+                        ${slots.length} ${isBuffer ? 'créneaux' : 'passages'}
                     </span>
                 </div>
                 
                 <div style="text-align:center;">
                     <div style="font-size:0.85rem; font-weight:500; color:#ecf0f1; line-height:1.2; word-break:break-word;">
-                        ${teacherNames || 'Aucun prof assigné'}
+                        ${teacherText}
                     </div>
-                    ${juryLangs ? `
+                    ${juryLangs && !isBuffer ? `
                         <div style="margin-top:5px;">
                             <span style="font-size:0.7rem; background:#e67e22; color:white; padding:1px 6px; border-radius:4px; text-transform:uppercase; font-weight:bold;">
                                 🗣️ ${juryLangs}
@@ -16644,7 +16666,7 @@ function renderOralVisualDistribution() {
         let body = document.createElement('div');
         body.className = 'dd-room-body';
         body.style.padding = "10px";
-        body.style.backgroundColor = "#f8f9fa";
+        body.style.backgroundColor = isBuffer ? "#fdf2e9" : "#f8f9fa"; // Fond légèrement teinté pour la zone tampon
 
         // Helper pour créer les séparateurs bleus (Drag & Drop)
         const createSeparator = (insertIndex) => {
@@ -16671,29 +16693,35 @@ function renderOralVisualDistribution() {
 
         slots.forEach((slot, index) => {
             
-            // --- 3. GESTION VISUELLE DES PAUSES ---
-            const pauseHere = pauses.find(p => p.end === slot.startTime);
-            if (pauseHere) {
-                let pDiv = document.createElement('div');
-                pDiv.style.cssText = "background:#f1f2f6; border:2px dashed #bdc3c7; border-radius:5px; padding:8px; margin-bottom:8px; display:flex; align-items:center; color:#7f8c8d; font-size:0.85rem;";
-                pDiv.innerHTML = `
-                    <span style="font-size:1.2rem; margin-right:10px;">☕</span> 
-                    <div style="flex-grow:1;">
-                        <strong>${pauseHere.label || 'PAUSE'}</strong><br>
-                        <small>${pauseHere.start} - ${pauseHere.end}</small>
-                    </div>
-                `;
-                body.appendChild(pDiv);
+            // --- 3. GESTION VISUELLE DES PAUSES (Désactivé pour la Zone Tampon) ---
+            if (!isBuffer) {
+                const pauseHere = pauses.find(p => p.end === slot.startTime);
+                if (pauseHere) {
+                    let pDiv = document.createElement('div');
+                    pDiv.style.cssText = "background:#f1f2f6; border:2px dashed #bdc3c7; border-radius:5px; padding:8px; margin-bottom:8px; display:flex; align-items:center; color:#7f8c8d; font-size:0.85rem;";
+                    pDiv.innerHTML = `
+                        <span style="font-size:1.2rem; margin-right:10px;" aria-hidden="true">☕</span> 
+                        <div style="flex-grow:1;">
+                            <strong>${pauseHere.label || 'PAUSE'}</strong><br>
+                            <small>${pauseHere.start} - ${pauseHere.end}</small>
+                        </div>
+                    `;
+                    body.appendChild(pDiv);
+                }
             }
 
             // --- 4. RENDU DU CRÉNEAU ÉLÈVE (SLOT) ---
             let slotDiv = document.createElement('div');
             slotDiv.style.cssText = "border: 1px solid #ccc; border-radius: 5px; margin-bottom: 8px; background: white; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);";
             
+            // En-tête du créneau adapté si c'est la zone tampon
+            let slotHeaderHTML = isBuffer 
+                ? `<span>⚠️ Candidats en attente</span>` 
+                : `<span>⏱️ ${slot.startTime} - ${slot.endTime}</span><span style="color:#7f8c8d; font-size:0.75rem;">${slot.type === 'group' ? '👥 Groupe' : '👤 Indiv.'}</span>`;
+
             slotDiv.innerHTML = `
                 <div style="background:#e9ecef; padding:5px; font-size:0.85rem; font-weight:bold; border-bottom:1px solid #ccc; display:flex; justify-content:space-between;">
-                    <span>⏱️ ${slot.startTime} - ${slot.endTime}</span>
-                    <span style="color:#7f8c8d; font-size:0.75rem;">${slot.type === 'group' ? '👥 Groupe' : '👤 Indiv.'}</span>
+                    ${slotHeaderHTML}
                 </div>
             `;
 
@@ -16714,8 +16742,9 @@ function renderOralVisualDistribution() {
                 stDiv.draggable = true;
                 
                 const langueBadge = student.langue ? `<span style="font-size:0.65rem; background:#95a5a6; color:white; padding:1px 4px; border-radius:3px; margin-left:4px;">${student.langue}</span>` : "";
-                const priorityStar = student.isPriority ? `<span style="color: #f1c40f; margin-right: 5px; font-size:1.1rem;" title="Élève Prioritaire">⭐</span>` : "";
+                const priorityStar = student.isPriority ? `<span style="color: #f1c40f; margin-right: 5px; font-size:1.1rem;" title="Élève Prioritaire" aria-label="Prioritaire">⭐</span>` : "";
 
+                // RGAA : Ajout de aria-label sur le bouton de suppression
                 stDiv.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
                         <div style="flex-grow:1; display:flex; align-items:center; font-size:0.9rem; overflow:hidden;">
@@ -16727,6 +16756,7 @@ function renderOralVisualDistribution() {
                         </div>
                         <button style="background:transparent; border:none; cursor:pointer; color:#e74c3c; font-weight:bold; padding:0 5px;" 
                                 onclick="removeStudentFromSlot('${juryName}', ${index}, ${studentIndex})"
+                                aria-label="Retirer ${student.prenom} ${student.nom} du créneau"
                                 title="Retirer l'élève">❌</button>
                     </div>
                 `;
@@ -16753,103 +16783,80 @@ function renderOralVisualDistribution() {
         card.appendChild(body);
         container.appendChild(card);
     });
-}
+};
 
-/**
- * @why Gère le routage du Dépôt (Drop) avec sécurité ANTI-PAUSE.
- * Empêche la fusion d'un élève sur un créneau de pause.
- */
-function handleOralDrop(e) {
-    e.preventDefault();
-    e.currentTarget.style.backgroundColor = "transparent";
-    
-    // Reset style pour les séparateurs
-    if (e.currentTarget.className === 'inter-slot-separator') {
-        e.currentTarget.style.height = "8px";
-    }
+window.handleOralDrop = function(e) {
+    e.preventDefault(); 
+    e.currentTarget.style.backgroundColor = "transparent"; 
     
     try {
         const data = JSON.parse(e.dataTransfer.getData('text/plain'));
         const targetJury = e.currentTarget.getAttribute('data-jury');
-        const isInsertion = e.currentTarget.hasAttribute('data-insert-index');
+        let isInsertion = e.currentTarget.hasAttribute('data-insert-index');
+        
+        // --- CORRECTIF DOUBLONS ---
+        // Si on dépose dans la Zone Tampon, on refuse l'insertion (création de nouveau slot)
+        // On force le dépôt dans le slot 0 (le vivier principal)
+        if (targetJury === "Zone Tampon") {
+            isInsertion = false;
+            e.currentTarget.setAttribute('data-slot-index', '0');
+        }
+
         const sourceJury = data.juryName;
         const sourceSlotIndex = data.slotIndex;
         const studentId = data.studentId;
 
-        // 1. Extraction de l'élève source
         const sourceSlot = DB.oralConfig.distribution[sourceJury][sourceSlotIndex];
-        const studentIndex = sourceSlot.students.findIndex(s => s.id === studentId);
-        if (studentIndex === -1) return;
+        const studentToMoveRef = sourceSlot.students.find(s => s.id === studentId);
+        if (!studentToMoveRef) return;
 
-        // --- BARRIÈRE DE SÉCURITÉ : FUSION SUR PAUSE ---
-        if (!isInsertion) {
+        // Empêcher de mettre un élève sur une pause (hors zone tampon)
+        if (!isInsertion && targetJury !== "Zone Tampon") {
             const targetSlotIndex = parseInt(e.currentTarget.getAttribute('data-slot-index'));
             const targetSlot = DB.oralConfig.distribution[targetJury][targetSlotIndex];
-            
-            // Si le créneau cible est une pause, on annule tout
-            if (targetSlot && (targetSlot.isPause || targetSlot.type === 'pause')) {
-                alert("⚠️ Action impossible : Vous ne pouvez pas ajouter un élève sur un créneau de pause.");
+            if (targetSlot && targetSlot.isPause) {
+                alert("Impossible de déposer un élève sur une pause.");
                 return;
             }
         }
 
-        // 2. Déplacement effectif (on ne retire l'élève qu'après avoir validé la cible)
-        const [studentToMove] = sourceSlot.students.splice(studentIndex, 1);
+        // Logique de groupe
+        const groupId = studentToMoveRef.groupId;
+        let studentsToMove = groupId ? sourceSlot.students.filter(s => s.groupId === groupId) : [studentToMoveRef];
 
-        // Nettoyage de la source
-        let sourceSlotRemoved = false;
-        if (sourceSlot.students.length === 0) {
+        // Retrait de la source
+        sourceSlot.students = sourceSlot.students.filter(s => !studentsToMove.includes(s));
+        if (sourceSlot.students.length === 0 && sourceJury !== "Zone Tampon") {
             DB.oralConfig.distribution[sourceJury].splice(sourceSlotIndex, 1);
-            sourceSlotRemoved = true;
-        } else if (sourceSlot.students.length === 1) {
-            sourceSlot.type = "indiv";
         }
 
-        // 3. Routage de l'action
+        // Insertion ou Fusion
         if (isInsertion) {
-            let insertIndex = parseInt(e.currentTarget.getAttribute('data-insert-index'));
-            
-            // Ajustement d'index si suppression au-dessus dans le même jury
-            if (sourceJury === targetJury && sourceSlotRemoved && sourceSlotIndex < insertIndex) {
-                insertIndex--;
-            }
-
+            const insertIndex = parseInt(e.currentTarget.getAttribute('data-insert-index'));
             const newSlot = {
-                type: "indiv",
-                theme: studentToMove.parcours || "Général",
-                langue: studentToMove.langue || null,
-                students: [studentToMove],
-                startTime: "", 
-                endTime: ""
+                type: studentsToMove.length > 1 ? "group" : "indiv",
+                students: studentsToMove,
+                startTime: "", endTime: ""
             };
             DB.oralConfig.distribution[targetJury].splice(insertIndex, 0, newSlot);
-
         } else {
-            let targetSlotIndex = parseInt(e.currentTarget.getAttribute('data-slot-index'));
-            if (sourceJury === targetJury && sourceSlotRemoved && sourceSlotIndex < targetSlotIndex) {
-                targetSlotIndex--;
-            }
-
+            const targetSlotIndex = parseInt(e.currentTarget.getAttribute('data-slot-index'));
             const targetSlot = DB.oralConfig.distribution[targetJury][targetSlotIndex];
-            targetSlot.students.push(studentToMove);
+            targetSlot.students.push(...studentsToMove);
             if (targetSlot.students.length > 1) targetSlot.type = "group";
         }
 
-        // 4. Moteur de recalcul (Appelle la version optimisée avec gestion des pauses)
         if (typeof recalculateJuryTimes === 'function') {
             recalculateJuryTimes(sourceJury);
-            if (sourceJury !== targetJury) {
-                recalculateJuryTimes(targetJury);
-            }
+            recalculateJuryTimes(targetJury);
         }
-
-        // 5. Rafraichissement Visuel
+        
+        syncOralDistributionData();
         renderOralVisualDistribution();
+        if (typeof autoSave === 'function') autoSave();
 
-    } catch (error) {
-        console.error("Erreur technique lors du déplacement :", error);
-    }
-}
+    } catch (err) { console.error(err); }
+};
 
 // --- LOGIQUE DRAG & DROP ORAL ---
 function handleOralDragOver(e) {
@@ -17555,7 +17562,7 @@ window.exportOralJuryPochettes = function() {
         const tableBody = slots.map(slot => {
             // Formatage spécifique pour inclure la langue après le parcours
             const studentDetails = slot.students.map(s => {
-                const parcoursInfo = s.parcours || slot.theme || "Général";
+                const parcoursInfo = s.parcours || slot.theme || "Non précisé";
                 const langueSuffix = (s.langue && s.langue.trim() !== "") ? ` (${s.langue.trim()})` : "";
                 return `${parcoursInfo}${langueSuffix}${slot.sujet ? '\nSujet : ' + slot.sujet : ''}`;
             });
@@ -17903,39 +17910,98 @@ window.updateSecretariatYearDisplay = function() {
 };
 
 /**
- * @why Retire un élève spécifique d'un créneau de passage dans la répartition en mémoire.
- * Permet de gérer les aléas (départ d'un élève) sans détruire le travail algorithmique déjà validé.
- * 
- * @param {string} juryName - Le nom de la clé du jury (ex: "Jury 1")
- * @param {number} slotIndex - L'index du créneau de passage dans le tableau du jury
- * @param {number} studentIndex - L'index de l'élève dans le tableau des étudiants de ce créneau
+ * @why Retire un élève (ou son groupe complet) d'un jury et le renvoie dans la Zone Tampon.
  */
 window.removeStudentFromSlot = function(juryName, slotIndex, studentIndex) {
-    // 1. Contrôle d'intégrité
     if (!DB.oralConfig.distribution[juryName] || !DB.oralConfig.distribution[juryName][slotIndex]) return;
 
     const slot = DB.oralConfig.distribution[juryName][slotIndex];
     const student = slot.students[studentIndex];
 
-    // 2. Sécurité : Demande de confirmation
-    const msg = `⚠️ Voulez-vous vraiment retirer ${student.nom.toUpperCase()} ${student.prenom} de ce créneau de passage ?\n\nCette action libérera sa place. Pensez à sauvegarder votre projet ensuite.`;
+    const isGroup = student.groupId != null && slot.students.length > 1;
     
-    if (confirm(msg)) {
-        // 3. Mutation : Retrait de l'élève du tableau
-        slot.students.splice(studentIndex, 1);
+    // Alerte Contextuelle et Accessible (Lecteur d'écran friendly)
+    const msg = isGroup 
+        ? `⚠️ ${student.nom.toUpperCase()} fait partie d'un groupe.\nVoulez-vous retirer TOUT LE GROUPE de ce créneau ?\n\nIls retourneront ensemble dans la Zone Tampon.`
+        : `⚠️ Voulez-vous vraiment retirer ${student.nom.toUpperCase()} ${student.prenom} de ce créneau ?\n\nIl/Elle retournera dans la Zone Tampon.`;
 
-        // 4. Nettoyage : Si le créneau n'a plus aucun élève, on supprime le créneau complet
+    if (confirm(msg)) {
+        if (isGroup) {
+            // Retrait de tous les membres partageant le même groupe
+            slot.students = slot.students.filter(s => s.groupId !== student.groupId);
+        } else {
+            // Retrait individuel
+            slot.students.splice(studentIndex, 1);
+        }
+
+        // Nettoyage métier
         if (slot.students.length === 0) {
             DB.oralConfig.distribution[juryName].splice(slotIndex, 1);
+        } else if (slot.students.length === 1) {
+            slot.type = 'indiv';
         }
 
-        // 5. Réactivité : On force le rafraîchissement visuel du DOM
-        if (typeof renderOralVisualDistribution === 'function') {
-            renderOralVisualDistribution();
-        }
+        // Synchronisation immédiate et Idempotente
+        if (typeof syncOralDistributionData === 'function') syncOralDistributionData();
         
-        console.log(`🧹 Élève retiré avec succès du ${juryName}.`);
+        // Rafraîchissement DOM
+        if (typeof renderOralVisualDistribution === 'function') renderOralVisualDistribution();
+        if (typeof autoSave === 'function') autoSave();
     }
+};
+
+/**
+ * @why Maintient la cohérence entre la liste des candidats et la répartition.
+ * Vérifie l'existence des élèves dans les jurys, nettoie les fantômes,
+ * et place les nouveaux/orphelins dans la Zone Tampon.
+ */
+window.syncOralDistributionData = function() {
+    if (!DB.oralConfig.students) DB.oralConfig.students = [];
+    if (!DB.oralConfig.distribution) DB.oralConfig.distribution = {};
+
+    // 1. On s'assure que la Zone Tampon existe
+    if (!DB.oralConfig.distribution["Zone Tampon"]) {
+        DB.oralConfig.distribution["Zone Tampon"] = [{
+            type: "buffer",
+            students: [],
+            startTime: "",
+            endTime: "",
+            isBuffer: true
+        }];
+    }
+
+    const validStudentIds = new Set(DB.oralConfig.students.map(s => s.id));
+    const placedStudentIds = new Set();
+
+    // 2. Nettoyage des jurys et recensement des élèves affectés
+    Object.keys(DB.oralConfig.distribution).forEach(juryName => {
+        let slots = DB.oralConfig.distribution[juryName];
+        
+        for (let i = slots.length - 1; i >= 0; i--) {
+            let slot = slots[i];
+            // Nettoyer les élèves qui n'existent plus dans la base principale
+            slot.students = slot.students.filter(s => validStudentIds.has(s.id));
+            
+            // Si le slot est vide après nettoyage (et ce n'est pas la Zone Tampon), on le supprime
+            if (slot.students.length === 0 && !slot.isBuffer) {
+                slots.splice(i, 1);
+            } else if (juryName !== "Zone Tampon") {
+                // On enregistre les IDs des élèves bien placés dans de vrais jurys
+                slot.students.forEach(s => placedStudentIds.add(s.id));
+            }
+        }
+    });
+
+    // 3. Identification des orphelins (existe dans la base mais pas dans un vrai jury)
+    let bufferSlot = DB.oralConfig.distribution["Zone Tampon"][0];
+    bufferSlot.students = []; // On réinitialise pour reconstruire proprement
+    
+    DB.oralConfig.students.forEach(student => {
+        if (!placedStudentIds.has(student.id)) {
+            // L'élève n'est dans aucun jury, il va dans la Zone Tampon
+            bufferSlot.students.push(student);
+        }
+    });
 };
 
 /**
@@ -18422,7 +18488,7 @@ window.renderOralResultsTable = function() {
             <tr onclick="editOralNoteInline('${s.id}')" style="cursor: pointer;" title="Cliquez pour modifier la note">
                 <td><b>${s.nom.toUpperCase()}</b> ${s.prenom}</td>
                 <td>${s.classe || "N/C"}</td>
-                <td><small>${s.parcours || "Général"}</small></td>
+                <td><small>${s.parcours || "Non précisé"}</small></td>
                 <td style="text-align: center;"><span class="badge" style="background:#eee; color:#333;">${juryId}</span></td>
                 <td style="text-align: center; font-weight: bold; color: var(--primary);" id="note-cell-${s.id}">
                     ${note !== "" ? note : '<span style="color:#ccc; font-weight:normal;">-</span>'}
@@ -18480,7 +18546,7 @@ window.exportOralResultsExcel = function() {
             "Nom": s.nom.toUpperCase(),
             "Prénom": s.prenom,
             "Classe": s.classe || "",
-            "Parcours": s.parcours || "Général",
+            "Parcours": s.parcours || "Non précisé",
             "Jury": juryId,
             "Note / 20": s.noteOral !== undefined ? s.noteOral : ""
         };
@@ -18556,7 +18622,7 @@ window.exportOralResultsPDF = function() {
         return [
             `${s.nom.toUpperCase()} ${s.prenom}`,
             s.classe || "N/C",
-            s.parcours || "Général",
+            s.parcours || "Non précisé",
             `Jury ${juryId}`,
             noteAffichage
         ];
@@ -18793,9 +18859,9 @@ window.renderOralDataViz = function() {
 
     // --- 4. RENDU PARCOURS & EPI ---
     let htmlParcours = "";
-    const parcoursList = [...new Set(students.map(s => s.parcours || "Général"))].sort();
+    const parcoursList = [...new Set(students.map(s => s.parcours || "Non précisé"))].sort();
     parcoursList.forEach(p => {
-        const parcoursStudents = students.filter(s => (s.parcours || "Général") === p);
+        const parcoursStudents = students.filter(s => (s.parcours || "Non précisé") === p);
         htmlParcours += createVisualBar(`📍 ${p}`, calculateGradeStats(parcoursStudents));
     });
     parcoursCharts.innerHTML = htmlParcours || "<p style='color: #7f8c8d;'>Aucun parcours défini.</p>";
@@ -19038,9 +19104,9 @@ window.exportOralDataVizPDF = function() {
     doc.text("3. Analyse par Parcours Éducatifs", 14, parcoursStartY);
 
     const parcoursBody = [];
-    const parcoursList = [...new Set(students.map(s => s.parcours || "Général"))].sort();
+    const parcoursList = [...new Set(students.map(s => s.parcours || "Non précisé"))].sort();
     parcoursList.forEach(p => {
-        parcoursBody.push([p, ...Object.values(calculateGradeStats(students.filter(s => (s.parcours || "Général") === p)))]);
+        parcoursBody.push([p, ...Object.values(calculateGradeStats(students.filter(s => (s.parcours || "Non précisé") === p)))]);
     });
 
     doc.autoTable({
@@ -19320,7 +19386,7 @@ window.exportOralConvocEleves = function(params) {
 
         // --- CADRE 1 : IDENTITÉ ---
         doc.setDrawColor(44, 62, 80).setLineWidth(0.5);
-        const sujetTexte = s.sujet || "Non renseigné";
+        const sujetTexte = s.sujet || "-";
         const sujetLines = doc.splitTextToSize(sujetTexte, 155);
         const cadre1Height = 48 + ((sujetLines.length - 1) * 5);
         doc.rect(14, 50, 182, cadre1Height); 
@@ -19329,7 +19395,7 @@ window.exportOralConvocEleves = function(params) {
         doc.text(`${civilite} ${s.nom.toUpperCase()} ${s.prenom}`, 20, 60);
         doc.setFont("helvetica", "normal").setFontSize(11);
         doc.text(`Classe : ${s.classe || "N/C"}`, 20, 72);
-        doc.setFont("helvetica", "bold").text(`Parcours : ${s.parcours || "Général"}`, 20, 80);
+        doc.setFont("helvetica", "bold").text(`Parcours : ${s.parcours || "Non précisé"}`, 20, 80);
         doc.text("Sujet : ", 20, 86);
         doc.setFont("helvetica", "normal").text(sujetLines, 35, 86); 
 
@@ -20148,39 +20214,54 @@ window.findStudentInOralDistrib = function(searchTerm) {
         }
     });
 };
-/**
- * @why Synchronise la répartition avec les nouvelles données des élèves 
- * (Changement de parcours, langue, etc. APRES avoir fait la répartition)
- */
-window.syncOralDistributionData = function() {
-    if (!DB.oralConfig || !DB.oralConfig.distribution) return;
 
-    Object.values(DB.oralConfig.distribution).forEach(passages => {
-        passages.forEach(passage => {
-            if (passage.students && passage.students.length > 0) {
-                // On prend l'ID du premier élève du passage (valable même pour les groupes)
-                const refId = passage.students[0].id;
-                const liveStudent = DB.oralConfig.students.find(s => s.id === refId);
-                
-                if (liveStudent) {
-                    // 1. On met à jour les informations du créneau (affichées sur la carte)
-                    passage.theme = liveStudent.parcours || "-";
-                    passage.langue = liveStudent.langue ? liveStudent.langue.trim().toUpperCase() : null;
-                    
-                    // 2. On rafraîchit la référence complète de l'élève à l'intérieur
-                    passage.students = passage.students.map(ds => {
-                        return DB.oralConfig.students.find(s => s.id === ds.id) || ds;
-                    });
-                }
+window.syncOralDistributionData = function() {
+    if (!DB.oralConfig.students) DB.oralConfig.students = [];
+    if (!DB.oralConfig.distribution) DB.oralConfig.distribution = {};
+
+    // 1. Initialisation / Sécurisation de la Zone Tampon
+    if (!DB.oralConfig.distribution["Zone Tampon"] || DB.oralConfig.distribution["Zone Tampon"].length === 0) {
+        DB.oralConfig.distribution["Zone Tampon"] = [{
+            type: "buffer", students: [], startTime: "", endTime: "", isBuffer: true
+        }];
+    }
+
+    // --- CORRECTIF ANTI-DOUBLONS ---
+    // Si par accident il y a plusieurs slots dans la Zone Tampon, on fusionne tout dans le premier
+    if (DB.oralConfig.distribution["Zone Tampon"].length > 1) {
+        const mainBuffer = DB.oralConfig.distribution["Zone Tampon"][0];
+        for (let i = 1; i < DB.oralConfig.distribution["Zone Tampon"].length; i++) {
+            mainBuffer.students.push(...DB.oralConfig.distribution["Zone Tampon"][i].students);
+        }
+        DB.oralConfig.distribution["Zone Tampon"] = [mainBuffer];
+    }
+
+    const validStudentIds = new Set(DB.oralConfig.students.map(s => s.id));
+    const placedStudentIds = new Set();
+
+    // 2. Recensement des élèves réellement affectés à des jurys (hors tampon)
+    Object.keys(DB.oralConfig.distribution).forEach(juryName => {
+        if (juryName === "Zone Tampon") return; // On ignore le tampon pour l'instant
+
+        let slots = DB.oralConfig.distribution[juryName];
+        for (let i = slots.length - 1; i >= 0; i--) {
+            let slot = slots[i];
+            slot.students = slot.students.filter(s => validStudentIds.has(s.id));
+            if (slot.students.length === 0 && !slot.isPause) {
+                slots.splice(i, 1);
+            } else {
+                slot.students.forEach(s => placedStudentIds.add(s.id));
             }
-        });
+        }
     });
 
-    // 3. Rafraîchit visuellement les colonnes du drag & drop si l'onglet est ouvert
-    if (typeof renderOralVisualDistribution === 'function') {
-        renderOralVisualDistribution();
-    }
+    // 3. Mise à jour du vivier unique
+    let bufferSlot = DB.oralConfig.distribution["Zone Tampon"][0];
+    bufferSlot.students = DB.oralConfig.students.filter(s => !placedStudentIds.has(s.id));
+
+    return true;
 };
+
 /**
  * @why Récupère la salle associée à un jury en regardant la salle attribuée aux professeurs de ce jury.
  * (Si deux professeurs d'un même jury ont des salles différentes par erreur, on prend la première trouvée).
@@ -20244,7 +20325,7 @@ window.exportOralDistributionExcel = function() {
                     "Prénom": s.prenom || "",
 					"Classe": s.classe || "N/C",
                     "Sexe": s.sexe || "",
-                    "Parcours": s.parcours || "Général",
+                    "Parcours": s.parcours || "Non précisé",
                     "Option/Langue": s.langue || "",
                     "Jury": juryId,
                     "Salle": infoJury.room,
