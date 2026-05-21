@@ -19343,12 +19343,17 @@ function getArrivalTime(startTime, offsetMins) {
     } catch (e) { return startTime; }
 }
 
+/**
+ * @why Génère le publipostage PDF des convocations des élèves pour l'oral du DNB.
+ * Correction Métier : Récupère la bonne variable (s.langue) et affiche la mention conditionnellement.
+ * @param {Object} params - Paramètres de configuration (consignes, décalage, accueil)
+ */
 window.exportOralConvocEleves = function(params) {
     if (!window.jspdf) return alert("Librairie jsPDF manquante.");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
     
-    // Utiliser les params passés ou ceux de la DB par défaut
+    // Utiliser les paramètres passés ou ceux de la base de données locale (DB)
     const p = params || DB.oralConfig.convocParams || { showArrival: false, offset: 0, text: "" };
 
     const scheduleMap = {};
@@ -19384,20 +19389,48 @@ window.exportOralConvocEleves = function(params) {
 
         let civilite = s.sexe === 'F' ? "Madame" : (s.sexe === 'M' ? "Monsieur" : "Candidat(e)");
 
-        // --- CADRE 1 : IDENTITÉ ---
+        // --- CADRE 1 : IDENTITÉ & OPTION (VARIABLE CORRIGÉE ICI) ---
         doc.setDrawColor(44, 62, 80).setLineWidth(0.5);
+        
+        // Récupération de la variable EXACTE utilisée par l'application
+        const langueRaw = s.langue || "";
+        
+        // Filtrage strict : la langue ne doit pas être vide, ni "null", ni "undefined", ni "N/C"
+        const hasLangue = langueRaw && 
+                          langueRaw.trim() !== "" && 
+                          langueRaw.trim().toUpperCase() !== "N/C" && 
+                          langueRaw.trim().toUpperCase() !== "NON SPÉCIFIÉE";
+        
         const sujetTexte = s.sujet || "-";
         const sujetLines = doc.splitTextToSize(sujetTexte, 155);
-        const cadre1Height = 48 + ((sujetLines.length - 1) * 5);
+        
+        // Hauteur adaptative du rectangle d'identité
+        const baseHeight = hasLangue ? 55 : 48;
+        const cadre1Height = baseHeight + ((sujetLines.length - 1) * 5);
         doc.rect(14, 50, 182, cadre1Height); 
 
         doc.setFontSize(12).setFont("helvetica", "bold");
         doc.text(`${civilite} ${s.nom.toUpperCase()} ${s.prenom}`, 20, 60);
+        
         doc.setFont("helvetica", "normal").setFontSize(11);
-        doc.text(`Classe : ${s.classe || "N/C"}`, 20, 72);
-        doc.setFont("helvetica", "bold").text(`Parcours : ${s.parcours || "Non précisé"}`, 20, 80);
-        doc.text("Sujet : ", 20, 86);
-        doc.setFont("helvetica", "normal").text(sujetLines, 35, 86); 
+        doc.text(`Classe : ${s.classe || "N/C"}`, 20, 70);
+        
+        doc.setFont("helvetica", "bold");
+        doc.text(`Parcours : ${s.parcours || "Non précisé"}`, 20, 77);
+        
+        // Point d'ancrage vertical dynamique
+        let currentY = 84; 
+        
+        // Condition d'affichage : Invisible si aucune langue n'est détectée
+        if (hasLangue) {
+            doc.setFont("helvetica", "bold");
+            doc.text(`Langue évaluée : ${langueRaw.trim()}`, 20, currentY);
+            currentY += 7; // On décale le bloc suivant uniquement si la ligne a été écrite
+        }
+        
+        // Affichage du Sujet
+        doc.setFont("helvetica", "bold").text("Sujet : ", 20, currentY);
+        doc.setFont("helvetica", "normal").text(sujetLines, 35, currentY); 
 
         // --- CADRE 2 : INFOS PASSAGE ---
         const cadre2Y = 50 + cadre1Height + 5; 
@@ -19409,7 +19442,7 @@ window.exportOralConvocEleves = function(params) {
         
         if (p.showArrival) {
             const heureAccueil = getArrivalTime(schedule.startTime, p.offset);
-            doc.setFont("helvetica", "bold").setTextColor(231, 76, 60); // Rouge pour attirer l'oeil
+            doc.setFont("helvetica", "bold").setTextColor(231, 76, 60); // Norme d'accessibilité (Contraste élevé)
             doc.text(`HEURE DE CONVOCATION : ${heureAccueil}`, 20, cadre2Y + 20);
             doc.setTextColor(0);
             doc.setFontSize(14).text(`Heure de passage : ${schedule.startTime}`, 20, cadre2Y + 32);
