@@ -2000,15 +2000,15 @@ Aucune sortie anticipée n'est autorisée. Vous devez rester assis et silencieux
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
                     <div>
                         <label for="oral-dur-indiv" style="font-size:0.9rem;">Durée Individuel (min)</label>
-                        <input type="number" id="oral-dur-indiv" value="15" min="5" class="form-control">
+                        <input type="number" id="oral-dur-indiv" value="15" min="5" class="form-control" onchange="DB.oralConfig.general.durIndiv = parseInt(this.value)">
                     </div>
                     <div>
                         <label for="oral-dur-group" style="font-size:0.9rem;">Durée Groupe (min)</label>
-                        <input type="number" id="oral-dur-group" value="25" min="10" class="form-control">
+                        <input type="number" id="oral-dur-group" value="25" min="10" class="form-control" onchange="DB.oralConfig.general.durGroup = parseInt(this.value)">
                     </div>
                     <div style="grid-column: span 2;">
                         <label for="oral-dur-harm" style="font-size:0.9rem;">Harmonisation / Délibération post-passage (min)</label>
-                        <input type="number" id="oral-dur-harm" value="5" min="0" class="form-control">
+                        <input type="number" id="oral-dur-harm" value="5" min="0" class="form-control" onchange="DB.oralConfig.general.durHarm = parseInt(this.value)">
                     </div>
                 </div>
             </fieldset>
@@ -3325,6 +3325,11 @@ function refreshOralConfigUI() {
     if (typeof renderThemesGrid === 'function') {
         renderThemesGrid();
     }
+	
+	// [NOUVEAU] - Restauration visuelle des paramètres de durée de la modale
+    if (DB.oralConfig.general?.durIndiv) document.getElementById('oral-dur-indiv').value = DB.oralConfig.general.durIndiv;
+    if (DB.oralConfig.general?.durGroup) document.getElementById('oral-dur-group').value = DB.oralConfig.general.durGroup;
+    if (DB.oralConfig.general?.durHarm) document.getElementById('oral-dur-harm').value = DB.oralConfig.general.durHarm;
 
     console.log("✅ Interface de configuration orale synchronisée.");
 }
@@ -7066,24 +7071,22 @@ function generateLabelsPDF(type, nbCols, nbRows) {
 }
 
 function saveGlobalData() { 
-    // --- 1. ENREGISTREMENT DES CONSIGNES (AJOUT) ---
-    // On récupère le texte des zones de saisie pour le mettre dans la base de données (DB)
-    if(document.getElementById('txtPochetteActions')) 
-        DB.config.txtPochetteActions = document.getElementById('txtPochetteActions').value;
-    
-    if(document.getElementById('txtPochetteProfs')) 
-        DB.config.txtPochetteProfs = document.getElementById('txtPochetteProfs').value;
-    
-    if(document.getElementById('txtPochetteEleves')) 
-        DB.config.txtPochetteEleves = document.getElementById('txtPochetteEleves').value;
-        
-    if(document.getElementById('txtConvocInfo')) 
-        DB.config.txtConvocInfo = document.getElementById('txtConvocInfo').value;
-        
-    if(document.getElementById('txtConvocProfsInfo')) 
-        DB.config.txtConvocProfsInfo = document.getElementById('txtConvocProfsInfo').value;
+    // --- 1. ENREGISTREMENT DES CONSIGNES & PARAMÈTRES (MODIFIÉ) ---
+    // ... (garde ton code existant pour les textes txtPochette...)
 
-    // --- 2. VOTRE CODE D'ORIGINE (DATE & FICHIER) ---
+    // NOUVEAU : Sauvegarde des paramètres de l'oral dans la DB avant export
+    if (!DB.oralConfig) DB.oralConfig = {};
+    if (!DB.oralConfig.general) DB.oralConfig.general = {};
+
+    const elHarm = document.getElementById('oral-dur-harm');
+    const elIndiv = document.getElementById('oral-dur-indiv');
+    const elGroup = document.getElementById('oral-dur-group');
+
+    if (elHarm) DB.oralConfig.general.durHarm = parseInt(elHarm.value) || 0;
+    if (elIndiv) DB.oralConfig.general.durIndiv = parseInt(elIndiv.value) || 15;
+    if (elGroup) DB.oralConfig.general.durGroup = parseInt(elGroup.value) || 25;
+
+    // --- 2. VOTRE CODE D'ORIGINE ---
     const d = new Date(); 
     const fn = `${d.getFullYear()} ${(d.getMonth()+1).toString().padStart(2,'0')} ${d.getDate().toString().padStart(2,'0')} - Sauvegarde Orga Exam College.data`; 
     
@@ -7092,10 +7095,10 @@ function saveGlobalData() {
     a.download = fn; 
     a.click();
     
-    // --- 3. RESET DE L'ALERTE (VOTRE CODE) ---
+    // --- 3. RESET DE L'ALERTE ---
     firstUnsavedTime = null;
-    updateSaveButtonStatus(); // Arrête le clignotement
-    alert("✅ Projet exporté avec succès !\nLe compteur de sauvegarde est réinitialisé. \n(Les consignes personnalisées ont bien été incluses)");
+    updateSaveButtonStatus(); 
+    alert("✅ Projet exporté avec succès !\nLes durées d'épreuve et d'harmonisation ont bien été incluses.");
 }
 
 // Fonction qui vérifie le temps écoulé et change le style du bouton
@@ -16537,50 +16540,69 @@ function getNextValidStartTime(startTimeStr, durationMins, pauses = []) {
 }
 
 /**
- * @why Recalcule les horaires de passage pour un jury spécifique.
- * Utilisé après un Drag & Drop ou une modification manuelle pour 
- * s'assurer que les horaires se suivent sans chevaucher les pauses.
+ * @why Recalcule les horaires de passage pour un jury spécifique après une manipulation (Drag & Drop).
+ * @logic Prend en compte les disponibilités des professeurs du jury et sécurise la récupération des durées.
  */
-function recalculateJuryTimes(juryName) {
+window.recalculateJuryTimes = function(juryName) {
     // 1. Récupération des créneaux (slots) de ce jury
     const slots = DB.oralConfig.distribution[juryName];
     if (!slots || slots.length === 0) return;
 
-    // 2. Récupération des paramètres globaux
+    // 2. Sécurisation des paramètres globaux de durée
+    // On cherche d'abord dans la base de données, puis dans le DOM, puis on applique un Fallback standard.
+const durHarm = DB.oralConfig.general.durHarm || parseInt(document.getElementById('oral-dur-harm')?.value) || 5;
+const durIndiv = DB.oralConfig.general.durIndiv || parseInt(document.getElementById('oral-dur-indiv')?.value) || 15;
+const durGroup = DB.oralConfig.general.durGroup || parseInt(document.getElementById('oral-dur-group')?.value) || 25;
+
     const globalStartTime = DB.oralConfig.general.start || "08:00";
-    const durHarm = parseInt(document.getElementById('oral-dur-harm')?.value) || 5;
-    const durIndiv = parseInt(document.getElementById('oral-dur-indiv')?.value) || 15;
-    const durGroup = parseInt(document.getElementById('oral-dur-group')?.value) || 25;
-    
-    // 3. RÉCUPÉRATION DES PAUSES (Essentiel pour le calcul)
+
+    // 3. PRISE EN COMPTE DES CONTRAINTES DU JURY
+    // On recherche les professeurs qui composent ce jury pour trouver la contrainte horaire la plus forte
+    let juryStartTime = globalStartTime;
+    if (DB.oralConfig.teachers && DB.oralConfig.teachers.length > 0) {
+        // Filtrage strict sur le nom du jury
+        const juryMembers = DB.oralConfig.teachers.filter(t => String(t.jury) === String(juryName));
+        
+        if (juryMembers.length > 0) {
+            // On récupère toutes les heures de début de ces profs, converties en minutes
+            // timeToMins() est une fonction native de ton script
+            const startMinsArray = juryMembers.map(t => timeToMins(t.dispoStart || globalStartTime));
+            
+            // Le jury ne peut commencer que lorsque le professeur qui arrive le plus tard est présent (Math.max)
+            const maxStartMins = Math.max(...startMinsArray);
+            juryStartTime = minsToTime(maxStartMins);
+        }
+    }
+
+    // 4. RÉCUPÉRATION DES PAUSES
     const breaks = DB.oralConfig.pauses || [];
+    let currentStartTime = juryStartTime;
 
-    let currentStartTime = globalStartTime;
-
+    // 5. RECALCUL BOUCLE SUR LES SLOTS
     slots.forEach(slot => {
-        // Détermination de la durée selon le type de passage
+        // Détermination de la durée selon le type de passage (Individuel ou Groupe)
         const passageDuration = slot.type === "group" ? durGroup : durIndiv;
         
-        // TEMPS REQUIS : On vérifie si l'épreuve + l'harmonisation tiennent
-        // cela évite de finir l'élève à 12h00 mais de n'avoir l'harmonisation qu'à 12h05 (pendant la pause)
+        // Empreinte temporelle totale requise (Passage + Harmonisation)
         const totalBlockMins = passageDuration + durHarm;
 
-        // 4. APPEL SÉCURISÉ : On passe les "breaks" à la fonction
+        // Appel sécurisé : Gère l'évitement des pauses (récréation, repas)
+        // getNextValidStartTime() décale le currentStartTime si ça chevauche une pause
         currentStartTime = getNextValidStartTime(currentStartTime, totalBlockMins, breaks);
 
-        // 5. Mise à jour du créneau
+        // Application au slot
         slot.startTime = currentStartTime;
         slot.endTime = addMinutesToTime(currentStartTime, passageDuration);
 
-        // 6. Préparation du créneau suivant (Heure de fin + Harmonisation)
+        // Incrémentation du curseur pour l'élève suivant (incluant l'harmonisation)
         currentStartTime = addMinutesToTime(slot.endTime, durHarm);
     });
 
-    // 7. Mise à jour visuelle si nécessaire
+    // 6. Rendu visuel
     if (typeof renderOralVisualDistribution === 'function') {
         renderOralVisualDistribution();
     }
-}
+};
 
 /**
  * @why Génère l'affichage complet des colonnes de jurys et de la Zone Tampon.
