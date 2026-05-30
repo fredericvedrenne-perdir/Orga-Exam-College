@@ -17566,41 +17566,55 @@ window.exportOralJuryPochettes = function() {
         }
 
         // 2. Titres
-        doc.setFontSize(22);
-        doc.setTextColor(...primaryColor);
-        doc.setFont("helvetica", "bold");
-        doc.text(`Oral du DNB - Session ${sessionYear}`, 320, 25, { align: 'center' });
-        
-        doc.setFontSize(18);
-        doc.text(`DOSSIER JURY N°${juryName}`, 320, 35, { align: 'center' });
+doc.setFontSize(22);
+doc.setTextColor(...primaryColor);
+doc.setFont("helvetica", "bold");
+doc.text(`Oral du DNB - Session ${sessionYear}`, 320, 25, { align: 'center' });
+doc.setFontSize(18);
+doc.text(`DOSSIER JURY N°${juryName}`, 320, 35, { align: 'center' });
 
-        // 3. Composition du jury
-        const names = juryTeachers.map(t => `${t.civ || ""} ${t.nom.toUpperCase()} ${t.prenom}`).join(' / ');
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Jurys : ${names}`, 320, 45, { align: 'center' });
+// 3. Composition du jury et affichage de la Salle
+const names = juryTeachers.map(t => `${t.civ || ""} ${t.nom.toUpperCase()} ${t.prenom}`).join(' / ');
 
-        // 4. Tableau Planning (Page de droite) avec intégration de la langue
-        const tableBody = slots.map(slot => {
-            // Formatage spécifique pour inclure la langue après le parcours
-            const studentDetails = slot.students.map(s => {
-                const parcoursInfo = s.parcours || slot.theme || "Non précisé";
-                const langueSuffix = (s.langue && s.langue.trim() !== "") ? ` (${s.langue.trim()})` : "";
-                return `${parcoursInfo}${langueSuffix}${slot.sujet ? '\nSujet : ' + slot.sujet : ''}`;
-            });
+// Logique métier : on cherche la salle attribuée à l'un des professeurs de ce jury.
+// Si non trouvée, on cherche dans la configuration globale des salles.
+let roomDisplay = "Non assignée";
+const teacherWithRoom = juryTeachers.find(t => t.salle && String(t.salle).trim() !== "");
 
-            return [
-                slot.startTime,
-                slot.students.map(s => `${s.nom.toUpperCase()} ${s.prenom}`).join('\n'),
-                [...new Set(slot.students.map(s => s.classe))].join(', '),
-                [...new Set(studentDetails)].join('\n---\n') // On évite les doublons de parcours dans le même créneau
-            ];
-        });
+if (teacherWithRoom) {
+    roomDisplay = teacherWithRoom.salle;
+} else if (typeof getJuryRoomName === 'function') {
+    roomDisplay = getJuryRoomName(juryName);
+}
 
-        doc.autoTable({
-            startY: 55,
-            margin: { left: 225 },
-            tableWidth: 180,
+// Rendu PDF : Ajout de la salle et léger décalage vers le bas de la composition du jury
+doc.setFontSize(12);
+doc.setFont("helvetica", "bold");
+doc.text(`Salle : ${roomDisplay}`, 320, 43, { align: 'center' });
+
+doc.setFont("helvetica", "normal");
+doc.text(`Jurys : ${names}`, 320, 50, { align: 'center' }); // Descendu à Y=50
+
+// 4. Tableau Planning (Page de droite) avec intégration de la langue
+const tableBody = slots.map(slot => {
+    // ... [Garde le contenu interne d'origine du map intact] ...
+    const studentDetails = slot.students.map(s => {
+        const parcoursInfo = s.parcours || slot.theme || "Non précisé";
+        const langueSuffix = (s.langue && s.langue.trim() !== "") ? ` (${s.langue.trim()})` : "";
+        return `${parcoursInfo}${langueSuffix}${slot.sujet ? '\nSujet : ' + slot.sujet : ''}`;
+    });
+    return [
+        slot.startTime,
+        slot.students.map(s => `${s.nom.toUpperCase()} ${s.prenom}`).join('\n'),
+        [...new Set(slot.students.map(s => s.classe))].join(', '),
+        [...new Set(studentDetails)].join('\n---\n')
+    ];
+});
+
+doc.autoTable({
+    startY: 58, // Légèrement repoussé (58 au lieu de 55) pour aérer avec le nouveau texte
+    margin: { left: 225 },
+    tableWidth: 180,
             head: [['Heure', 'Candidat(s)', 'Cl.', 'Parcours (Langue) & Sujet']],
             body: tableBody,
             theme: 'grid',
