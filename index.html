@@ -14291,9 +14291,6 @@ window.generatePochettesMatieresPDF = function() {
     doc.save(`Pochettes_Matieres_${examYear}.pdf`);
 };
 
-/**
- * Lit nativement le fichier Excel et déclenche la bonne génération PDF selon le bouton cliqué.
- */
 window.processLotsExcel = function(docType) {
     const rneInput = document.getElementById('inputRneCe').value.trim().toUpperCase();
     const fileInput = document.getElementById('excelLotsInput');
@@ -14318,9 +14315,10 @@ window.processLotsExcel = function(docType) {
             let headerIndex = -1;
             let headers = [];
 
+            // 1. Recherche adaptative de la ligne d'en-tête (2025 vs 2026)
             for (let i = 0; i < Math.min(20, rows.length); i++) {
                 const rowStr = rows[i].join(" ");
-                if (rowStr.includes("RNE CE") || rowStr.includes("Numéro lot")) {
+                if (rowStr.includes("RNE CE") || rowStr.includes("Numéro lot") || rowStr.includes("Lot de copies")) {
                     headerIndex = i;
                     headers = rows[i];
                     break;
@@ -14332,12 +14330,16 @@ window.processLotsExcel = function(docType) {
                 return;
             }
 
+            // 2. Recherche adaptative des index des colonnes (Compatibilité 2025 / 2026)
             const findIndexPartial = (arr, searchStr) => arr.findIndex(h => typeof h === 'string' && h.includes(searchStr));
             const idxRneCE = findIndexPartial(headers, "RNE CE");
             const idxComCor = findIndexPartial(headers, "Com Cor");
-            const idxLot = findIndexPartial(headers, "Numéro lot");
+            const idxLot = headers.findIndex(h => typeof h === 'string' && (h.includes("Numéro lot") || h.includes("Lot de copies")));
+            const idxEpreuve = headers.findIndex(h => typeof h === 'string' && (h.includes("Libellé épreuve") || h.includes("Matière")));
+            
+            // Colonne de quantité (2025 = rang, 2026 = Nombre de copies com corr)
             const idxRang = findIndexPartial(headers, "rang");
-            const idxEpreuve = findIndexPartial(headers, "Libellé épreuve");
+            const idxNbCopies = findIndexPartial(headers, "Nombre de copies");
 
             // 1. Structure pour les Bordereaux (A3)
             const matieresData = {
@@ -14352,17 +14354,31 @@ window.processLotsExcel = function(docType) {
 
             for (let i = headerIndex + 1; i < rows.length; i++) {
                 const row = rows[i];
-                if (!row || row.length <= Math.max(idxRneCE, idxEpreuve)) continue;
+                if (!row || row.length === 0) continue;
 
-                const rowRne = String(row[idxRneCE]).trim().toUpperCase();
+                // Extraction et nettoyage du RNE (Format 2026 : "Centre épreuve : 0330008E")
+                let rowRne = String(row[idxRneCE] || "").trim().toUpperCase();
+                rowRne = rowRne.replace(/CENTRE (É|E)PREUVE\s*:/i, "").trim();
+                
                 if (rowRne !== rneInput) continue;
 
                 const comCor = String(row[idxComCor]).trim();
-                const lotNum = String(row[idxLot]).trim();
-                const rang = parseInt(String(row[idxRang]).trim(), 10);
+                
+                // Extraction et nettoyage du Numéro de Lot (Format 2026 : "Lot de copies : 18")
+                let lotNum = String(row[idxLot]).trim();
+                lotNum = lotNum.replace(/LOT DE COPIES\s*:/i, "").trim();
+
                 const epreuveBrut = String(row[idxEpreuve]).trim().toLowerCase();
 
-                if (isNaN(rang)) continue;
+                // Détermination du nombre de copies (Adaptatif 2025/2026)
+                let rang = 0;
+                if (idxNbCopies !== -1 && row[idxNbCopies]) {
+                    rang = parseInt(String(row[idxNbCopies]).trim(), 10);
+                } else if (idxRang !== -1 && row[idxRang]) {
+                    rang = parseInt(String(row[idxRang]).trim(), 10);
+                }
+
+                if (isNaN(rang) || rang === 0) continue;
 
                 // Nettoyage du nom de l'épreuve
                 let cleanEpreuve = "";
